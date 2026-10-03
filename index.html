@@ -94,8 +94,10 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Imbalance<small>buyers vs sellers one row apart</small></label><select id="sImb"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Absorption strength<small>selling/buying at the low/high vs a normal row</small></label><select id="sAbs"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Big trade size<small>oz in one second (100 oz = 1 MT5 lot)</small></label><select id="sBig"><option value="10">10 oz</option><option value="25">25 oz</option><option value="50">50 oz</option><option value="100">100 oz</option><option value="250">250 oz</option></select></div>
-  <div class="row"><label>Match my MT5 price<small>type your MT5 XAUUSD price right now — the app shows MT5 prices from then on. <span id="sNow"></span></small></label><input id="sMt5" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 4142.71"></div>
-  <div class="row"><label>MT5 price offset<small>Binance minus MT5 (set automatically by the box above, 0 = show Binance prices)</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
+  <div class="row"><label>Prices shown<small id="sOffStat"></small></label><select id="sOffMode"><option value="auto">MT5 prices — automatic</option><option value="manual">MT5 prices — my own offset</option><option value="off">Binance prices</option></select></div>
+  <div class="row"><label>Fine-tune (automatic mode)<small>if your MT5 still differs a little, e.g. 0.20 = show prices 20 cents lower</small></label><input id="sAdj" type="number" step="0.01" inputmode="decimal"></div>
+  <div class="row"><label>Match my MT5 price (manual)<small>type your MT5 XAUUSD price right now — switches to "my own offset". <span id="sNow"></span></small></label><input id="sMt5" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 4142.71"></div>
+  <div class="row"><label>My own offset<small>Binance minus MT5, used in "my own offset" mode</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
   <div class="row"><label>History to load<small>footprint detail for the last…</small></label><select id="sBack"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div>
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
@@ -104,7 +106,7 @@ input[type=checkbox]{width:22px;height:22px}
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
-    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD — use the offset. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
+    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
 <script>
@@ -114,7 +116,7 @@ const API = 'https://fapi.binance.com';
 const WSB = 'wss://fstream.binance.com/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, backfill: 60, sound: true, tab: 'fp'};
+const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp'};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 3600;        // heatmap history: 1 hour of 1-second columns
@@ -150,7 +152,46 @@ const book = {b: new Map(), a: new Map(), state: 'wait', buf: [], last: 0, pu: 0
 
 const rowOf = p => Math.floor(p / S.step + 1e-7);
 const fmtV = v => v >= 10000 ? (v / 1000).toFixed(0) + 'k' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 10 ? Math.round(v).toString() : v >= 0.05 ? v.toFixed(1) : '0';
-const fmtP = p => (p - S.offset).toFixed(2);
+// ---- MT5 price matching. Automatic: while the real gold market is open, Binance's index price is built from real
+// spot-gold quotes, so (Binance price - index) is exactly the gap to spot gold / MT5. It is measured every 10 s,
+// smoothed, and frozen while gold is closed (weekends, the daily 23:00-00:00 Tirana break), when the index is only
+// Binance's own order book.
+function curOff() {
+  if (S.offMode === 'off') return 0;
+  if (S.offMode === 'manual') return S.offset || 0;
+  return (S.autoOff == null ? 0 : S.autoOff) + (S.offAdj || 0);
+}
+const fmtP = p => (p - curOff()).toFixed(2);
+const nyParts = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', hour12: false});
+function goldOpen(ms) {          // CME/OTC gold hours: Sunday 18:00 - Friday 17:00 New York, daily break 17:00-18:00
+  const pr = nyParts.formatToParts(new Date(ms));
+  const wd = pr.find(x => x.type === 'weekday').value, h = +pr.find(x => x.type === 'hour').value % 24;
+  if (wd === 'Sat') return false;
+  if (wd === 'Sun') return h >= 18;
+  if (wd === 'Fri') return h < 17;
+  return h !== 17;
+}
+let offLive = false;
+async function pollIndex() {
+  offLive = false;
+  if (!goldOpen(Date.now())) return;
+  try {
+    const d = await getJSON(`/fapi/v1/premiumIndex?symbol=${S.sym}`);
+    const mark = +d.markPrice, idx = +d.indexPrice;
+    if (!(mark > 0 && idx > 0)) return;
+    const gap = mark - idx;
+    const fresh = Date.now() - (S.autoOffT || 0) > 30 * 60000 || S.autoOff == null;   // first reading after a pause: take it as is
+    S.autoOff = Math.round((fresh ? gap : S.autoOff + 0.15 * (gap - S.autoOff)) * 100) / 100;
+    S.autoOffT = Date.now(); offLive = true; saveS(); dirty = true;
+  } catch (e) {}
+}
+function offStatus() {
+  if (S.offMode === 'off') return 'showing Binance prices';
+  if (S.offMode === 'manual') return `own offset ${(S.offset || 0).toFixed(2)}`;
+  if (S.autoOff == null) return 'automatic — waits for the gold market to open';
+  const when = S.autoOffT ? tFmt.format(S.autoOffT) : '';
+  return `automatic: Binance − MT5 = ${S.autoOff.toFixed(2)}` + (offLive ? ' (live)' : ` (frozen since ${when} — gold market closed)`);
+}
 const tFmt = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false});
 const tFmtS = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
 function tiranaMidnight(ms) {
@@ -718,7 +759,7 @@ function renderTape() {
 
 // ---------------------------------------------------------------- header
 function renderHeader() {
-  if (lastPrice) $('#hPx').textContent = (S.offset ? 'MT5≈ ' : '') + fmtP(lastPrice);
+  if (lastPrice) $('#hPx').textContent = (curOff() ? 'MT5≈ ' : '') + fmtP(lastPrice);
   const d = sessBuy - sessSell;
   const el = $('#hDelta'); el.textContent = 'Δ today ' + (d >= 0 ? '+' : '-') + fmtV(Math.abs(d)) + ' oz'; el.style.color = d >= 0 ? C.buy : C.sell;
   const va = calcVA(prof);
@@ -803,10 +844,10 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sBack: 'backfill'};
+const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sBack: 'backfill'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
-  $('#sSnd').checked = !!S.sound; $('#sMt5').value = '';
+  $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
   $('#sNow').textContent = lastPrice ? `(Binance now ${lastPrice.toFixed(2)})` : '';
   $('#sheet').classList.remove('hidden');
 };
@@ -814,10 +855,11 @@ $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
   const old = Object.assign({}, S);
-  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = k === 'sym' ? v : (parseFloat(v) || 0); }
+  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode') ? v : (parseFloat(v) || 0); }
   S.sound = $('#sSnd').checked;
   const mt5 = parseFloat($('#sMt5').value);
-  if (mt5 > 0 && lastPrice) S.offset = Math.round((lastPrice - mt5) * 100) / 100;
+  if (mt5 > 0 && lastPrice) { S.offset = Math.round((lastPrice - mt5) * 100) / 100; S.offMode = 'manual'; }
+  if (S.sym !== old.sym) { S.autoOff = null; S.autoOffT = 0; }
   saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
   if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); return; }
   if (S.tf !== old.tf || S.step !== old.step || S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
@@ -844,13 +886,15 @@ document.addEventListener('visibilitychange', () => {
 });
 setInterval(sampleBook, 1000);
 setInterval(pruneSecs, 60000);
+setInterval(pollIndex, 10000);
+setTimeout(pollIndex, 1500);
 setInterval(() => { if (lastPrice && S.tab !== 'tape') dirty = true; }, 1000);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 setTab(S.tab || 'fp');
 resize();
 requestAnimationFrame(frame);
 start();
-window.GOF = {S, fpV, hmV, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals};
+window.GOF = {S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals};
 })();
 </script>
 </body>
