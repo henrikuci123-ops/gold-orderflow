@@ -953,6 +953,8 @@ function drawFP() {
   }
   ctx.fillStyle = C.dim; ctx.fillText('CVD ' + (sessBuy - sessSell >= 0 ? '+' : '-') + fmtQ(Math.abs(sessBuy - sessSell)), W - AX + 4, plotH + 26);
   ctx.fillText(tfLabel() + ' · $' + S.step, W - AX + 4, plotH + 12);
+  geo = {kind: 'fp', x1, plotH, yOf, vis, colW, axX: W - AX};
+  drawXH();
 }
 function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   const step = S.step, up = c.c >= c.o, col = up ? C.buy : C.sell;
@@ -1092,6 +1094,70 @@ function applyTheme() {
   dirty = true;
 }
 const off = document.createElement('canvas'), octx = off.getContext('2d');
+// ---------------------------------------------------------------- crosshair (tap the chart; drag it; tap again to hide) - like MT5
+let geo = null, hmCs = null;
+const xh = {on: false, x: 0, y: 0};
+const tFmtX = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+function drawXH() {
+  if (!xh.on || !geo) return;
+  const g = geo, x = clamp(xh.x, 0, g.x1 - 1), y = clamp(xh.y, 0, g.plotH - 1), price = g.yOf.inv(y);
+  const dark = S.tab === 'hm' ? HMPAL[hmPal()].dark : S.theme === 'dark';
+  const ink = dark ? '#e6edf3' : '#131722', paper = dark ? '#e6edf3' : '#131722', paperTxt = dark ? '#0b0e14' : '#ffffff';
+  ctx.save();
+  ctx.strokeStyle = dark ? 'rgba(230,237,243,.75)' : 'rgba(19,23,34,.65)'; ctx.setLineDash([5, 4]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, 0); ctx.lineTo(Math.round(x) + 0.5, g.plotH); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(g.axX, Math.round(y) + 0.5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#2962ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x - 9, y); ctx.lineTo(x + 9, y); ctx.moveTo(x, y - 9); ctx.lineTo(x, y + 9); ctx.stroke(); ctx.lineWidth = 1;
+  // price on the axis
+  ctx.font = 'bold 11px ui-monospace,Menlo,monospace'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = paper; ctx.fillRect(g.axX, y - 9, W - g.axX, 18); ctx.fillStyle = paperTxt; ctx.fillText(fmtP(price), g.axX + 4, y);
+  // what is under the crosshair
+  let tLabel = '', lines = [];
+  if (g.kind === 'fp') {
+    const hit = g.vis.find(v => x >= v.x && x < v.x + g.colW), c = hit && hit.c;
+    if (c && !isNaN(c.o)) {
+      tLabel = S.tf >= 1440 ? tFmtDay.format(c.t + 43200000) : tFmtX.format(c.t);
+      const d = c.buy - c.sell, cell = c.cells.get(rowOf(price));
+      lines = [tLabel, `O ${fmtP(c.o)}   H ${fmtP(c.h)}`, `L ${fmtP(c.l)}   C ${fmtP(c.c)}`,
+        `Delta ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}   Vol ${fmtQ(c.buy + c.sell)} ${UNIT()}`, `Buys ${fmtQ(c.buy)}   Sells ${fmtQ(c.sell)}`];
+      if (cell) lines.push(`At ${fmtP(Math.floor(price / S.step) * S.step)}: sells ${fmtQ(cell[0])} × buys ${fmtQ(cell[1])}`);
+      lines.push(`Range ${(c.h - c.l).toFixed(2)}   Price ${fmtP(price)}`);
+      tLabel = S.tf >= 1440 ? tLabel : tFmt.format(c.t);
+    }
+  } else {
+    const t = g.tEnd - Math.floor((g.x1 - x) / g.pps);
+    tLabel = tFmtS.format(t * 1000);
+    lines = [tFmtX.format(t * 1000).replace(/(\d\d:\d\d)$/, tFmtS.format(t * 1000)), `Price ${fmtP(price)}`];
+    let lo = 0, hi = g.vis.length - 1, col = null;                     // order book at that moment and price
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (g.vis[m].t <= t) { col = g.vis[m]; lo = m + 1; } else hi = m - 1; }
+    if (col && t - col.t <= 30) {
+      const r = Math.floor(price / g.hs + 1e-7), v = col.vals[r - col.base] || 0, ask = r * g.hs >= col.ba - 1e-9;
+      lines.push(`Waiting ${ask ? 'sell' : 'buy'} orders: ${fmtQ(v)} ${UNIT()}`);
+    }
+    const k = g.bk.find(k2 => t >= k2.t && t < k2.t + g.B);
+    if (k) lines.push(`Traded in ${g.B}s: buys ${fmtQ(k.b)}  sells ${fmtQ(k.s)}`);
+    const cc = g.cs && g.cs.list.find(c2 => t >= c2.t && t < c2.t + g.cs.tfs);
+    if (cc) lines.push(`${g.cs.tfs}s candle  O ${fmtP(cc.o)} H ${fmtP(cc.h)} L ${fmtP(cc.l)} C ${fmtP(cc.c)}`);
+  }
+  // time on the bottom strip
+  if (tLabel) {
+    ctx.font = 'bold 10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
+    const tw = ctx.measureText(tLabel).width + 10, bx0 = clamp(x - tw / 2, 0, W - tw);
+    ctx.fillStyle = paper; ctx.fillRect(bx0, g.plotH + 1, tw, 15); ctx.fillStyle = paperTxt; ctx.fillText(tLabel, bx0 + tw / 2, g.plotH + 9);
+  }
+  // info box next to the crosshair (flips to stay on screen)
+  if (lines.length) {
+    ctx.font = '12px -apple-system,BlinkMacSystemFont,sans-serif'; ctx.textAlign = 'left';
+    const lh = 17, bw = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, bh = lines.length * lh + 10;
+    let bx = x + 14, by = y + 14;
+    if (bx + bw > g.x1) bx = x - 14 - bw; if (bx < 2) bx = 2;
+    if (by + bh > g.plotH) by = y - 14 - bh; if (by < 2) by = 2;
+    ctx.fillStyle = dark ? 'rgba(22,27,34,.94)' : 'rgba(255,255,255,.96)'; ctx.strokeStyle = dark ? '#30363d' : '#d1d4dc';
+    ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+    lines.forEach((l, i) => { ctx.fillStyle = i === 0 ? (dark ? '#9aa4af' : '#787b86') : ink; ctx.fillText(l, bx + 8, by + 5 + lh * i + lh / 2); });
+  }
+  ctx.restore(); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
 function hmLayout() { const sm = small(); return {AX: 58, BW: S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW: S.svp ? (sm ? 40 : 84) : 0}; }
 function hmPlotW() { const l = hmLayout(); return Math.max(50, W - l.AX - l.BW - l.SW); }
 function drawHM() {                       // drawn with the heatmap's own (dark/light) colours
@@ -1164,10 +1230,12 @@ function drawHM2(LUTh) {
     for (const k of bk) { const h = Math.max(1, VB * (k.b + k.s) / mx); ctx.fillStyle = `rgba(${k.b >= k.s ? C.buyRGB : C.sellRGB},.8)`; ctx.fillRect(bx(k) - w / 2, plotH - h, w, h); }
   }
   // candles (Bookmap-style: always a few pixels wide; how many seconds each covers follows the zoom) or price line
+  hmCs = null;
   if (S.hmm !== 'line') {
     const tfs = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 300, 600, 900, 1800].find(v => v * hmV.pps >= 6) || 3600;
     const w = tfs * hmV.pps, bw = Math.max(1, Math.round(w * 0.6));
-    for (const c of hmCandles(tfs, tStart - tfs, tEnd, psFrom)) {
+    hmCs = {tfs, list: hmCandles(tfs, tStart - tfs, tEnd, psFrom)};
+    for (const c of hmCs.list) {
       const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
       if (xL > x1 || xL + w < 0) continue;
       const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1, Math.abs(yc - yo));
@@ -1248,6 +1316,8 @@ function drawHM2(LUTh) {
   ctx.fillStyle = C.dim; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
   for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) ctx.fillText(tFmt.format(t * 1000), xOf(t), plotH + 13);
   ctx.textAlign = 'left';
+  geo = {kind: 'hm', x1, plotH, yOf, axX: W - AX, tEnd, pps: hmV.pps, hs, vis, bk, B, cs: hmCs};
+  drawXH();
 }
 // OHLC per tfs seconds: 1-minute candles before the app's own trades, per-second trades after
 function hmCandles(tfs, t0, t1, secsFrom) {
@@ -1327,11 +1397,11 @@ function zoneOf(e) {
   if (S.tab === 'fp' ? y > H - 76 : y > H - 18) return 'x';
   return 'pan';
 }
-cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY, mode: zoneOf(e)}); unlockAudio(); if (ptrs.size === 2) pinch0 = pinchState(); });
-cv.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'grab'}[zoneOf(e)]; });
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: Date.now(), moved: false, mode: zoneOf(e)}); unlockAudio(); if (ptrs.size === 2) { pinch0 = pinchState(); for (const q of ptrs.values()) q.moved = true; } });
+cv.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'crosshair'}[zoneOf(e)]; });
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
-  if (e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'grab'}[zoneOf(e)];
+  if (e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'crosshair'}[zoneOf(e)];
   if (ptrs.size === 1 && p.mode !== 'pan') {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     if (p.mode === 'y') { const f = Math.exp(-dy / 120); if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
@@ -1339,6 +1409,11 @@ cv.addEventListener('pointermove', e => {
     dirty = true;
   } else if (ptrs.size === 1) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (Math.abs(e.clientX - p.x0) + Math.abs(e.clientY - p.y0) > 8) p.moved = true;
+    if (xh.on) {                                 // crosshair shown: dragging moves it (like MT5)
+      const r = cv.getBoundingClientRect(); xh.x = e.clientX - r.left; xh.y = e.clientY - r.top; dirty = true;
+      p.x = e.clientX; p.y = e.clientY; return;
+    }
     if (S.tab === 'fp') { fpV.off = Math.max(0, fpV.off + dx / fpV.colW); fpV.center += dy / fpV.rowH * S.step; fpV.follow = false; }
     else { hmV.off = Math.max(0, hmV.off + dx / hmV.pps); hmV.center += dy * hmV.dpp; hmV.follow = false; }
     dirty = true;
@@ -1351,7 +1426,16 @@ cv.addEventListener('pointermove', e => {
     dirty = true;
   }
 });
-const endPtr = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null; };
+const endPtr = e => {
+  const p = ptrs.get(e.pointerId);
+  if (e.type === 'pointerup' && p && p.mode === 'pan' && !p.moved && ptrs.size === 1 && Date.now() - p.t0 < 400) {   // a tap
+    const r = cv.getBoundingClientRect();
+    if (xh.on && Math.abs(e.clientX - r.left - xh.x) + Math.abs(e.clientY - r.top - xh.y) > 40) { xh.x = e.clientX - r.left; xh.y = e.clientY - r.top; }   // tap elsewhere: move it there
+    else { xh.on = !xh.on; xh.x = e.clientX - r.left; xh.y = e.clientY - r.top; }
+    dirty = true;
+  }
+  ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = null;
+};
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
 function pinchState() {
   const [a, b] = [...ptrs.values()];
@@ -1375,7 +1459,7 @@ function zoom(f) {
   dirty = true;
 }
 $('#zIn').onclick = () => zoom(1.2); $('#zOut').onclick = () => zoom(1 / 1.2);
-$('#zLive').onclick = () => { fpV.follow = hmV.follow = true; dirty = true; };
+$('#zLive').onclick = () => { fpV.follow = hmV.follow = true; xh.on = false; dirty = true; };
 
 // ---------------------------------------------------------------- tabs, settings, toast, sound
 function hmPanelSync() {
@@ -1446,7 +1530,7 @@ $('#dayB').onclick = () => {
 };
 setInterval(() => { if (!dayT || Date.now() - dayT.at > 3600000 || mt5Day(Date.now()) !== dayT.today) loadDayTrend(); else renderDay(); }, 5000);
 function setTab(t) {
-  S.tab = t; saveS();
+  S.tab = t; saveS(); xh.on = false;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   const panel = t === 'tape' || t === 'srv';
   $('#tools').classList.toggle('hidden', t !== 'fp' && t !== 'hm'); if (t !== 'hm') $('#hmPanel').classList.add('hidden');
