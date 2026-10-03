@@ -5,6 +5,8 @@ GET /api/book?minutes=120      recorded order book of the last N minutes (1-360)
     first_row = price of the lowest row / step; the q's are the waiting ounces (bids + asks) of consecutive rows
     upward from there. One column per recorded snapshot (every 2 s).
 GET /api/fp?tf=5&step=0.5&from=<ms>&until=<ms>&sess=<ms>   footprint candles for the app (see fp_candles below)
+GET /api/secs?minutes=120      every second with trades in the last N minutes (1-360), for the heatmap's bubbles / candles:
+    {"s": [[t_sec, open, high, low, close, buy_oz, sell_oz, buy_vwap, sell_vwap], ...]}
 GET /api/health                 "ok"
 Only the Python standard library; reads the hourly files written by recorder.py (plain or gzipped).
 """
@@ -239,6 +241,61 @@ def fp_candles(tf, step, frm, until, sess):
             "c": out, "p": flat_rows(prof)}
 
 
+_secs_cache = OrderedDict()            # (day, hh) -> (token, {sec: entry})   finished hours only
+
+
+def hour_secs(h, now_ms):
+    day, hh = F.day_hour(h)
+    files = F.recorded_trade_files(day, hh)
+    token = tuple((p, os.path.getmtime(p), os.path.getsize(p)) for p in files if os.path.exists(p))
+    finished = h + 3600000 <= now_ms - 120000
+    if finished:
+        hit = _secs_cache.get((day, hh))
+        if hit and hit[0] == token:
+            return hit[1]
+    out, last_a = {}, None
+    for a, t, pc, q, sell in sorted(F.recorded_trades(day, hh)):
+        if a == last_a:
+            continue
+        last_a = a
+        sec = t // 1000
+        e = out.get(sec)
+        if e is None:
+            e = out[sec] = [pc, pc, pc, pc, 0.0, 0.0, 0.0, 0.0]
+        if pc > e[1]:
+            e[1] = pc
+        if pc < e[2]:
+            e[2] = pc
+        e[3] = pc
+        if sell:
+            e[5] += q
+            e[7] += q * pc
+        else:
+            e[4] += q
+            e[6] += q * pc
+    if finished:
+        _secs_cache[(day, hh)] = (token, out)
+        while len(_secs_cache) > 8:
+            _secs_cache.popitem(last=False)
+    return out
+
+
+def secs_history(minutes):
+    now_ms = int(time.time() * 1000)
+    t0 = now_ms - minutes * 60000
+    h, rows = t0 - t0 % 3600000, []
+    while h <= now_ms:
+        hs = hour_secs(h, now_ms)
+        for sec in sorted(hs):
+            if sec * 1000 < t0:
+                continue
+            o, hi, lo, c, b, s_, pb, ps = hs[sec]
+            rows.append([sec, o / 100, hi / 100, lo / 100, c / 100, round(b, 3), round(s_, 3),
+                         round(pb / b / 100, 2) if b else 0, round(ps / s_ / 100, 2) if s_ else 0])
+        h += 3600000
+    return rows
+
+
 def warm_up():
     time.sleep(20)
     now = int(time.time() * 1000)
@@ -277,6 +334,11 @@ class Handler(BaseHTTPRequestHandler):
                 body = json.dumps({"symbol": SYMBOL, "step": STEP, "minutes": minutes, "cols": cols,
                                    "ms": round((time.time() - t) * 1000)}, separators=(",", ":"))
                 return self.send(200, body)
+            if u.path == "/api/secs":
+                minutes = max(1, min(MAX_MIN, int(float(q.get("minutes", ["120"])[0]))))
+                with _fp_lock:
+                    rows = secs_history(minutes)
+                return self.send(200, json.dumps({"minutes": minutes, "s": rows}, separators=(",", ":")))
             if u.path == "/api/fp":
                 g = lambda k, d: q.get(k, [d])[0]
                 now = int(time.time() * 1000)
