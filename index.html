@@ -179,7 +179,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', stepTf: {}, hmc: 60, hmPal: 'bookmap', hmGain: 50, hmFloor: 6, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', stepTf: {}, hmc: 60, hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -206,8 +206,9 @@ const THEMES = {
 };
 let C = THEMES.light;
 
-let S = Object.assign({}, DEF);
-try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
+let S = Object.assign({}, DEF), saved0 = {};
+try { saved0 = JSON.parse(localStorage.getItem(LS) || '{}'); Object.assign(S, saved0); } catch (e) {}
+if ((saved0.setv || 0) < 2) { S.hmFloor = 2; S.setv = 2; }      // one-time: brighter heatmap default
 const saveS = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
 const $ = s => document.querySelector(s);
 
@@ -301,8 +302,12 @@ function tiranaMidnight(ms) {
   const g = k => +((parts.find(x => x.type === k) || {}).value || 0);
   return ms - ((g('hour') % 24) * 3600 + g('minute') * 60 + g('second')) * 1000 - (ms % 1000);
 }
+async function fetchT(url, opts = {}, ms = 15000) {
+  const ac = new AbortController(), t = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, Object.assign({}, opts, {signal: ac.signal})); } finally { clearTimeout(t); }
+}
 async function getJSON(path) {
-  const r = await fetch(API + path);
+  const r = await fetchT(API + path);
   if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + path.split('?')[0]);
   return r.json();
 }
@@ -389,7 +394,7 @@ async function loadFP(until) {
   const sub = subTf(), from = until - (FPH[S.tf] || 24) * 3600000, t0 = Date.now(), step = S.step, sym = S.sym;
   fpInfo = {state: 'loading…'};
   try {
-    const r = await fetch(`${SERVER}/api/fp?tf=${sub}&step=${step}&from=${from}&until=${until}&sess=${sessStart}`, {cache: 'no-store'});
+    const r = await fetchT(`${SERVER}/api/fp?tf=${sub}&step=${step}&from=${from}&until=${until}&sess=${sessStart}`, {cache: 'no-store'}, 45000);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
@@ -539,7 +544,7 @@ function sampleBook() {
 }
 
 // ---------------------------------------------------------------- websocket + history
-let ws = null, wsBk = null, backoff = 1000, wsGen = 0;
+let ws = null, wsBk = null, backoff = 1000, wsGen = 0, lastDepthAt = 0;
 function status(txt, col) { $('#hSt').innerHTML = `<b style="background:${col}"></b>${txt}`; }
 function wsDown() { return !ws || ws.readyState > 1 || !wsBk || wsBk.readyState > 1; }
 function connect() {
@@ -548,11 +553,12 @@ function connect() {
   try { if (wsBk) wsBk.close(); } catch (e) {}
   ws = new WebSocket(WS_MARKET + `${s}@aggTrade`);           // trades
   wsBk = new WebSocket(WS_PUBLIC + `${s}@depth@500ms`);       // order book
+  lastDepthAt = Date.now();
   const onmsg = ev => {
     if (gen !== wsGen) return;
     let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
     const d = msg.data; if (!d) return;
-    if (d.e === 'aggTrade') onAgg(d); else if (d.e === 'depthUpdate') onDepth(d);
+    if (d.e === 'aggTrade') onAgg(d); else if (d.e === 'depthUpdate') { lastDepthAt = Date.now(); onDepth(d); }
   };
   ws.onmessage = onmsg; wsBk.onmessage = onmsg;
   ws.onopen = () => { if (gen !== wsGen) return; backoff = 1000; status(loading || 'live', '#22c55e'); if (!filling && lastId) gapFill(); };
@@ -699,7 +705,7 @@ async function loadBookHistory(minutes) {
   const sg = startGen, t0 = Date.now();
   srvHist = {state: 'loading…'}; renderSrv();
   try {
-    const r = await fetch(`${SERVER}/api/book?minutes=${Math.round(minutes)}`, {cache: 'no-store'});
+    const r = await fetchT(`${SERVER}/api/book?minutes=${Math.round(minutes)}`, {cache: 'no-store'}, 30000);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (sg !== startGen || S.hstep !== hs) return;
@@ -721,10 +727,10 @@ async function loadBookHistory(minutes) {
 let srvHistJ = null;
 async function loadSrvStatus() {
   try {
-    const r = await fetch(`${SERVER}/status.json?${Date.now()}`, {cache: 'no-store'});
+    const r = await fetchT(`${SERVER}/status.json?${Date.now()}`, {cache: 'no-store'});
     srvStat = await r.json(); srvStat._at = Date.now();
   } catch (e) { srvStat = {_err: e.message, _at: Date.now()}; }
-  try { const r = await fetch(`${SERVER}/history.json?${Date.now()}`, {cache: 'no-store'}); if (r.ok) srvHistJ = await r.json(); } catch (e) {}
+  try { const r = await fetchT(`${SERVER}/history.json?${Date.now()}`, {cache: 'no-store'}); if (r.ok) srvHistJ = await r.json(); } catch (e) {}
   renderSrv();
 }
 function renderSrv() {
@@ -1041,7 +1047,7 @@ function makeLUT(stops) {
 let LUT = makeLUT(C.hm);
 // heatmap colour schemes (Bookmap-style is the default; the dark ones draw the heatmap tab dark)
 const HMPAL = {
-  bookmap: {name: 'Bookmap', dark: true, gamma: 0.9, stops: [[0, [8, 12, 22]], [0.07, [12, 30, 62]], [0.2, [20, 78, 150]], [0.36, [52, 150, 225]], [0.5, [150, 212, 245]], [0.64, [245, 236, 120]], [0.8, [255, 160, 30]], [1, [255, 38, 18]]]},
+  bookmap: {name: 'Bookmap', dark: true, gamma: 0.65, stops: [[0, [8, 12, 22]], [0.07, [12, 30, 62]], [0.2, [20, 78, 150]], [0.36, [52, 150, 225]], [0.5, [150, 212, 245]], [0.64, [245, 236, 120]], [0.8, [255, 160, 30]], [1, [255, 38, 18]]]},
   thermal: {name: 'Thermal', dark: true, gamma: 0.8, stops: [[0, [6, 6, 10]], [0.15, [50, 18, 80]], [0.4, [160, 30, 90]], [0.65, [235, 100, 30]], [0.85, [250, 215, 70]], [1, [255, 255, 235]]]},
   ocean: {name: 'Ocean', dark: true, gamma: 0.6, stops: [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]]},
   light: {name: 'Light', dark: false, gamma: 0.5, stops: [[0, [255, 255, 255]], [0.12, [225, 236, 255]], [0.35, [130, 175, 255]], [0.6, [35, 95, 220]], [0.82, [250, 160, 35]], [1, [205, 25, 35]]]}
@@ -1054,7 +1060,7 @@ const secAt = t => secs.get(t) || hsecs.get(t);
 async function loadSecsHistory(minutes) {
   if (S.sym !== 'XAUUSDT') return;
   try {
-    const r = await fetch(`${SERVER}/api/secs?minutes=${Math.round(minutes)}`, {cache: 'no-store'});
+    const r = await fetchT(`${SERVER}/api/secs?minutes=${Math.round(minutes)}`, {cache: 'no-store'}, 30000);
     if (!r.ok) return;
     const d = await r.json();
     for (const [t, o, h, l, c, b, sv, vb, vs] of d.s) hsecs.set(t, {o, h, l, last: c, b, s: sv, pb: b * vb, ps: sv * vs});
@@ -1081,7 +1087,7 @@ function drawHM2(LUTh) {
   if (!cols.length) { msg(loading || 'Building the order book…'); return; }
   const sm = small(), AX = 58, BW = S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW = S.svp ? (sm ? 40 : 84) : 0, TB = 18, VB = S.vbars ? (sm ? 34 : 50) : 0;
   const x1 = W - AX - BW - SW, plotH = H - TB, midY = plotH / 2;
-  const lastCol = cols[cols.length - 1], nowSec = lastCol.t;
+  const lastCol = cols[cols.length - 1], nowSec = Math.max(lastCol.t, Math.floor(Date.now() / 1000) - 1), stale = nowSec - lastCol.t > 15;
   if (hmV.follow) { hmV.off = 0; hmV.center = lastPrice || (lastCol.bb + lastCol.ba) / 2; }
   if (!hmV.center) hmV.center = (lastCol.bb + lastCol.ba) / 2;
   const yOf = p => midY - (p - hmV.center) / hmV.dpp;
@@ -1099,7 +1105,7 @@ function drawHM2(LUTh) {
   for (let i = Math.max(0, vis.length - 60); i < vis.length; i += 3) { const c = vis[i]; for (let r = rBot; r <= rTop; r++) { const v = c.vals[r - c.base]; if (v > 0) sample.push(v); } }
   sample.sort((a, b) => a - b);
   const ref = (sample.length ? sample[Math.floor(sample.length * 0.97)] : 1) / Math.pow(2, ((S.hmGain ?? 50) - 50) / 25);
-  const floor = (S.hmFloor ?? 6) / 100, gam = HMPAL[hmPal()].gamma || 0.5;
+  const floor = (S.hmFloor ?? 2) / 100, gam = HMPAL[hmPal()].gamma || 0.5;
   if (vis.length && nRows > 0) {
     off.width = secsVis; off.height = nRows;
     const img = octx.createImageData(secsVis, nRows), D = img.data;
@@ -1198,7 +1204,7 @@ function drawHM2(LUTh) {
     if (S.cob && rowPx >= 10) { ctx.fillStyle = C.txt; ctx.fillText(fmtQ(v), xb + BW - 3, yT + rowPx / 2); }
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('COB', xb + 4, 11);
+  ctx.fillStyle = stale ? C.sell : C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText(stale ? 'reconnecting…' : 'COB', xb + 4, 11);
   if (S.walls) for (const w of walls) {
     const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
     ctx.strokeStyle = `rgba(${w.side > 0 ? C.buyRGB : C.sellRGB},.95)`; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
@@ -1356,7 +1362,7 @@ $('#zLive').onclick = () => { fpV.follow = hmV.follow = true; dirty = true; };
 function hmPanelSync() {
   $('#hmPals').innerHTML = Object.entries(HMPAL).map(([k, p]) => `<button data-pal="${k}" class="${k === hmPal() ? 'on' : ''}" style="background:linear-gradient(90deg,${p.stops.map(([t, c]) => `rgb(${c.join(',')}) ${Math.round(t * 100)}%`).join(',')})">${p.name}</button>`).join('');
   document.querySelectorAll('#hmPals button').forEach(b => b.onclick = () => { S.hmPal = b.dataset.pal; saveS(); hmPanelSync(); dirty = true; });
-  $('#hmGain').value = S.hmGain ?? 50; $('#hmFloor').value = S.hmFloor ?? 6; $('#hmBub').checked = !!S.bub; $('#hmBubSize').value = S.bubSize ?? 100;
+  $('#hmGain').value = S.hmGain ?? 50; $('#hmFloor').value = S.hmFloor ?? 2; $('#hmBub').checked = !!S.bub; $('#hmBubSize').value = S.bubSize ?? 100;
   $('#hmBubMin').value = String(S.bubMin ?? 10); $('#hmVbars').checked = !!S.vbars; $('#hmCob').checked = !!S.cob; $('#hmSvp').checked = !!S.svp;
 }
 const hmIn = (id, k, f) => $(id).addEventListener('input', () => { S[k] = f($(id)); saveS(); dirty = true; });
@@ -1466,11 +1472,14 @@ function beep(f) {
 
 // ---------------------------------------------------------------- boot
 window.addEventListener('resize', resize);
+window.addEventListener('pageshow', e => { if (e.persisted) { syncing = false; histBusy = false; backoff = 1000; connect(); } });
 let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
-  if (hiddenAt && Date.now() - hiddenAt > 10 * 60000 && !loading) { hiddenAt = 0; start(); return; }   // long pause: reload everything
+  const away = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = 0;
+  if (away > 10 * 60000 && !loading) { start(); return; }                 // long pause: reload everything
+  if (away > 15000) { syncing = false; histBusy = false; backoff = 1000; connect(); }   // sockets may be dead after a pause
   if (wsDown()) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
   const gapS = cols.length ? Date.now() / 1000 - cols[cols.length - 1].t : HIST_MIN * 60;
   if (gapS > 10) loadBookHistory(Math.min(HIST_MIN, Math.ceil(gapS / 60) + 2));
@@ -1478,10 +1487,14 @@ document.addEventListener('visibilitychange', () => {
   dirty = true;
 });
 setInterval(sampleBook, 1000);
+setInterval(() => {                      // watchdog: order book silent for 30 s while the app is open -> new connections
+  if (document.visibilityState !== 'visible' || loading || !lastDepthAt) return;
+  if (Date.now() - lastDepthAt > 30000) { syncing = false; backoff = 1000; lastDepthAt = Date.now(); connect(); }
+}, 5000);
 setInterval(pruneSecs, 60000);
 setInterval(pollIndex, 10000);
 setTimeout(pollIndex, 1500);
-setInterval(() => { if (lastPrice && S.tab !== 'tape' && S.tab !== 'srv') dirty = true; }, 1000);
+setInterval(() => { if (S.tab === 'fp' || S.tab === 'hm') dirty = true; }, 1000);
 setInterval(() => { if (S.tab === 'srv' && document.visibilityState === 'visible') loadSrvStatus(); }, 15000);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 applyTheme(); renderTools();
