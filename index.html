@@ -4,16 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Gold Order Flow</title>
-<meta name="theme-color" content="#0b0e14">
+<meta name="theme-color" content="#ffffff">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Gold Flow">
 <style>
-:root{--bg:#0b0e14;--panel:#121722;--line:#1f2635;--txt:#c9d1d9;--dim:#7d8590;--buy:#26a69a;--sell:#ef5350;--poc:#facc15;--va:#3b82f6;--acc:#e3b341}
+:root{--sel:#1c2433;--bg:#0b0e14;--panel:#121722;--line:#1f2635;--txt:#c9d1d9;--dim:#7d8590;--buy:#26a69a;--sell:#ef5350;--poc:#facc15;--va:#3b82f6;--acc:#e3b341}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font:14px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;overscroll-behavior:none}
 body{display:flex;flex-direction:column;padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
@@ -37,6 +37,20 @@ main{position:relative;flex:1;min-height:0}
 .zoom button.live{font-size:12px;font-weight:700;color:var(--acc)}
 #tape,#srv{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
 .hidden{display:none!important}
+#tools{display:flex;align-items:center;gap:2px;padding:0 6px;height:34px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+#tools::-webkit-scrollbar{display:none}
+#tools button{background:none;border:0;color:var(--dim);font-size:13px;font-weight:600;padding:5px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
+#tools button.on{color:var(--acc);background:var(--sel)}
+#tools .sep{flex:1}
+#tools .st2{font-size:11px;color:var(--dim);white-space:nowrap;padding-right:4px}
+.zoom button.day{font-size:12px;font-weight:700;color:#fff;border:0;padding:0 10px;white-space:nowrap}
+.zoom button.day.up{background:var(--buy)}.zoom button.day.dn{background:var(--sell)}.zoom button.day.na{background:var(--dim)}
+body.light{--bg:#ffffff;--panel:#ffffff;--line:#e0e3eb;--txt:#131722;--dim:#787b86;--buy:#089981;--sell:#f23645;--poc:#f7a600;--va:#2962ff;--acc:#2962ff;--sel:#e3effd}
+body.light .zoom button:not(.day){background:rgba(255,255,255,.95);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+body.light select,body.light input[type=number],body.light .btns button{background:#ffffff;color:var(--txt)}
+body.light .btns button.pri{color:#fff}
+body.light #toast{background:#ffffff;color:var(--txt);box-shadow:0 6px 24px rgba(0,0,0,.18)}
+body.light #sheet{background:rgba(0,0,0,.35)}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
 .card h3{margin:0 0 8px;font-size:13px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
 .flow{display:grid;grid-template-columns:44px 1fr 64px;gap:6px 8px;align-items:center;font-variant-numeric:tabular-nums;font-size:13px}
@@ -79,6 +93,7 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="tape">Tape</button>
   <button data-tab="srv">Server</button>
 </nav>
+<div id="tools"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button><span class="sep"></span><span class="st2" id="tStep"></span></div>
 <main>
   <canvas id="cv"></canvas>
   <div id="tape" class="hidden">
@@ -94,15 +109,16 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="card"><h3>Server log</h3><pre id="srvLog"></pre></div>
     <div class="card d">The server records Binance gold trades and the order book every 2 seconds, day and night, so the heatmap and walls are already filled in when you open the app. <a id="srvLink" target="_blank" rel="noopener">Status page</a> · <a id="srvData" target="_blank" rel="noopener">Recorded files</a></div>
   </div>
-  <div class="zoom" id="zoom"><button id="zOut" aria-label="Zoom out">−</button><button id="zIn" aria-label="Zoom in">+</button><button id="zLive" class="live">LIVE</button></div>
+  <div class="zoom" id="zoom"><button id="zOut" aria-label="Zoom out">−</button><button id="zIn" aria-label="Zoom in">+</button><button id="zLive" class="live">LIVE</button><button id="dayB" class="day na">day …</button></div>
 </main>
 <div id="toast" class="hidden"></div>
 <div id="sheet" class="hidden"><div class="in">
   <h2>Settings</h2>
+  <div class="row"><label>Look</label><select id="sTheme"><option value="light">Light (like TradingView)</option><option value="dark">Dark</option></select></div>
   <div class="row"><label>Market<small>Binance perpetual futures</small></label><select id="sSym"><option value="XAUUSDT">XAUUSDT (gold)</option><option value="XAUTUSDT">XAUTUSDT (Tether gold)</option><option value="PAXGUSDT">PAXGUSDT (Pax gold)</option><option value="XAGUSDT">XAGUSDT (silver)</option></select></div>
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
-  <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option></select></div>
-  <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option><option value="10">$10</option></select></div>
+  <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option><option value="1440">Daily (MT5 days)</option></select></div>
+  <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option><option value="10">$10</option><option value="20">$20</option></select></div>
   <div class="row"><label>Heatmap row size</label><select id="sHstep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option></select></div>
   <div class="row"><label>Imbalance<small>buyers vs sellers one row apart</small></label><select id="sImb"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Absorption strength<small>selling/buying at the low/high vs a normal row</small></label><select id="sAbs"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
@@ -137,15 +153,32 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', stepTf: {}, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
 const SERVER = 'https://178-128-194-91.sslip.io';   // our 24/7 recorder (DigitalOcean, Frankfurt)
 const HIST_MIN = 120;       // minutes of recorded order book loaded from the server when the app opens
 const MAXCALLS = 60;         // max REST calls for the trade history
-const FPH = {1: 6, 2: 12, 3: 12, 5: 24, 15: 72, 30: 120, 60: 240, 240: 720};   // hours of footprint history per candle size (from the server)
-const C = {bg: '#0b0e14', grid: '#161c28', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341'};
+const FPH = {1: 6, 2: 12, 3: 12, 5: 24, 15: 72, 30: 120, 60: 240, 240: 720, 1440: 2160};
+const STEPDEF = {1: 0.25, 2: 0.25, 3: 0.25, 5: 0.5, 15: 0.5, 30: 0.5, 60: 1, 240: 2, 1440: 5};   // row size per candle size (until changed)   // hours of footprint history per candle size (from the server)
+const THEMES = {
+  light: {bg: '#ffffff', grid: '#f0f3fa', line: '#e0e3eb', txt: '#131722', dim: '#787b86', buy: '#089981', sell: '#f23645', poc: '#f7a600', va: '#2962ff', acc: '#2962ff',
+    panel: '#ffffff', side: '#f8f9fd', buyRGB: '8,153,129', sellRGB: '242,54,69',
+    sellLo: [253, 228, 228], sellHi: [235, 77, 74], buyLo: [215, 243, 235], buyHi: [38, 166, 154], sellImb: '#c62828', buyImb: '#00796b', pocCell: '#9598a1',
+    cellTxt: '#131722', boxBg: '#ffffff', boxLine: '#d1d4dc', sellTxt: '#f23645', buyTxt: '#089981',
+    wallLbl: 'rgba(255,255,255,.94)', price: '#131722', dotB: 'rgba(8,153,129,.65)', dotS: 'rgba(242,54,69,.65)',
+    vaFill: 'rgba(41,98,255,0.04)', vaLine: 'rgba(41,98,255,.65)', pocLine: 'rgba(247,166,0,.9)',
+    hm: [[0, [255, 255, 255]], [0.12, [225, 236, 255]], [0.35, [130, 175, 255]], [0.6, [35, 95, 220]], [0.82, [250, 160, 35]], [1, [205, 25, 35]]]},
+  dark: {bg: '#0b0e14', grid: '#161c28', line: '#1f2635', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341',
+    panel: '#10141d', side: '#0d1119', buyRGB: '38,166,154', sellRGB: '239,83,80',
+    sellLo: [52, 26, 30], sellHi: [214, 76, 74], buyLo: [16, 44, 44], buyHi: [32, 150, 138], sellImb: '#c62828', buyImb: '#0f8a6c', pocCell: '#5d6675',
+    cellTxt: '#f2f5f8', boxBg: '#161b22', boxLine: '#30363d', sellTxt: '#ff8a80', buyTxt: '#5ee6c0',
+    wallLbl: 'rgba(11,14,20,.88)', price: 'rgba(255,255,255,.9)', dotB: 'rgba(38,200,170,.75)', dotS: 'rgba(255,90,90,.75)',
+    vaFill: 'rgba(59,130,246,0.05)', vaLine: 'rgba(59,130,246,.75)', pocLine: 'rgba(250,204,21,.8)',
+    hm: [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]]}
+};
+let C = THEMES.light;
 
 let S = Object.assign({}, DEF);
 try { Object.assign(S, JSON.parse(localStorage.getItem(LS) || '{}')); } catch (e) {}
@@ -175,7 +208,7 @@ let dirty = true, loading = '';
 const book = {b: new Map(), a: new Map(), state: 'wait', buf: [], last: 0, pu: 0, bb: 0, ba: 0};
 
 const rowOf = p => Math.floor(p / S.step + 1e-7);
-const tfLabel = (tf = S.tf) => tf >= 60 ? (tf / 60) + 'h' : tf + 'm';
+const tfLabel = (tf = S.tf) => tf >= 1440 ? 'D' : tf >= 60 ? (tf / 60) + 'h' : tf + 'm';
 const subTf = () => S.tf <= 60 ? S.tf : 60;             // server candle size (4h candles are built from 1h pieces)
 // 4h candles start at MT5 server midnight (= New York 17:00 close: UTC+3 in US summer time, UTC+2 in winter)
 const nyH = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', hour: '2-digit', hour12: false}), mt5Memo = new Map();
@@ -185,6 +218,9 @@ function mt5Off(T) {
   return o;
 }
 function tfKey(T) { const tf = S.tf * 60000; if (S.tf <= 60) return T - T % tf; const o = mt5Off(T); return Math.floor((T + o) / tf) * tf - o; }
+const mt5Day = T => { const o = mt5Off(T); return Math.floor((T + o) / 86400000) * 86400000 - o; };
+const tradingDay = ds => { const wd = new Date(ds + mt5Off(ds) + 3600000).getUTCDay(); return wd >= 1 && wd <= 5; };   // MT5 has no Sat/Sun bars
+
 const fmtV = v => v >= 10000 ? (v / 1000).toFixed(0) + 'k' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 10 ? Math.round(v).toString() : v >= 0.05 ? v.toFixed(1) : '0';
 // ---- MT5 price matching. Automatic: while the real gold market is open, Binance's index price is built from real
 // spot-gold quotes, so (Binance price - index) is exactly the gap to spot gold / MT5. It is measured every 10 s,
@@ -739,13 +775,13 @@ function drawWalls(yOf, x1, plotH, part) {
   for (const w of walls) {
     const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
     const a = Math.min(0.32, 0.12 + 0.03 * (w.mult - S.wmult));
-    const rgb = w.side > 0 ? '38,166,154' : '239,83,80';
+    const rgb = w.side > 0 ? C.buyRGB : C.sellRGB;
     if (part === 'zone') {
     ctx.fillStyle = `rgba(${rgb},${a})`; ctx.fillRect(0, y0, x1, Math.max(3, y1 - y0));
     ctx.strokeStyle = `rgba(${rgb},.7)`; ctx.beginPath(); ctx.moveTo(0, Math.round(y0) + 0.5); ctx.lineTo(x1, Math.round(y0) + 0.5); ctx.moveTo(0, Math.round(y1) + 0.5); ctx.lineTo(x1, Math.round(y1) + 0.5); ctx.stroke();
     continue; }
     const txt = `${w.side > 0 ? 'BUY' : 'SELL'} WALL ${fmtQ(w.qty)} ${UNIT()}`, tw = ctx.measureText(txt).width, ym = (y0 + y1) / 2;
-    ctx.fillStyle = 'rgba(11,14,20,.88)'; ctx.fillRect(x1 - tw - 12, ym - 8, tw + 10, 16);
+    ctx.fillStyle = C.wallLbl; ctx.fillRect(x1 - tw - 12, ym - 8, tw + 10, 16);
     ctx.strokeStyle = `rgba(${rgb},.9)`; ctx.strokeRect(x1 - tw - 11.5, ym - 7.5, tw + 9, 15);
     ctx.fillStyle = `rgb(${rgb})`;
     ctx.fillText(txt, x1 - 6, ym);
@@ -761,31 +797,50 @@ function resize() {
   const r = cv.getBoundingClientRect(); DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); dirty = true;
-  if (!fpV.init && W > 0) { fpV.init = true; if (W < 520) { fpV.colW = 80; fpV.rowH = 15; hmV.pps = 1.5; } }
+  if (!fpV.init && W > 0) { fpV.init = true; if (W < 520) { fpV.colW = 96; fpV.rowH = 16; hmV.pps = 1.5; } }
 }
-const fpV = {colW: 100, rowH: 17, follow: true, center: 0, off: 0};
+const fpV = {colW: 116, rowH: 18, follow: true, center: 0, off: 0};
 const hmV = {pps: 2, dpp: 0.03, follow: true, center: 0, off: 0};
 const small = () => W < 520;
 
 function msg(t) { ctx.fillStyle = C.dim; ctx.font = '14px -apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t, W / 2, H / 2); ctx.textAlign = 'left'; }
+// TradingView-style grid: horizontal lines at the price labels, vertical lines at the time labels
+function gridEvery(stepPx, stepP) {          // label/grid every N rows: about 32+ px apart, on round prices
+  const nice = [1, 2, 4, 5, 10, 20, 25, 40, 50, 100, 200, 400, 500, 1000];
+  for (const k of nice) if (k * stepPx >= 32) { const v = k * stepP; if (Math.abs(v * 4 - Math.round(v * 4)) < 1e-6 || k === nice[nice.length - 1]) return k; }
+  return Math.max(1, Math.ceil(32 / stepPx));
+}
+function gridH(yOf, x0, x1, top, bot, stepPx, stepP) {
+  const every = gridEvery(stepPx, stepP), pTop = yOf.inv(top), pBot = yOf.inv(bot);
+  const k0 = Math.ceil(Math.min(pTop, pBot) / (stepP * every)), k1 = Math.floor(Math.max(pTop, pBot) / (stepP * every));
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath();
+  for (let k = k0; k <= k1; k++) { const y = Math.round(yOf(k * stepP * every)) + 0.5; ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+  ctx.stroke();
+}
+function gridV(xs, top, bot) { ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath(); for (const x of xs) { const xx = Math.round(x) + 0.5; ctx.moveTo(xx, top); ctx.lineTo(xx, bot); } ctx.stroke(); }
+function lastCol() { const ks = sortedKeys(); const c = ks.length ? candles.get(ks[ks.length - 1]) : null; return c && !isNaN(c.o) && lastPrice < c.o ? C.sell : C.buy; }
+function lastLine(yOf, x1, plotH) {           // dotted line at the last price, like TradingView
+  if (!lastPrice) return; const y = Math.round(yOf(lastPrice)) + 0.5; if (y < 0 || y > plotH) return;
+  ctx.strokeStyle = lastCol(); ctx.setLineDash([1, 3]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
+}
 function priceAxis(x0, yOf, top, bot, stepPx, stepP) {
   ctx.fillStyle = C.bg; ctx.fillRect(x0, top, W - x0, bot - top);
-  ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(x0 + 0.5, top); ctx.lineTo(x0 + 0.5, bot); ctx.stroke();
+  ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x0 + 0.5, top); ctx.lineTo(x0 + 0.5, bot); ctx.stroke();
   ctx.font = '11px ui-monospace,Menlo,monospace'; ctx.fillStyle = C.dim; ctx.textBaseline = 'middle';
-  const every = Math.max(1, Math.ceil(20 / stepPx));
+  const every = gridEvery(stepPx, stepP);
   const pTop = yOf.inv(top), pBot = yOf.inv(bot);
   const k0 = Math.ceil(Math.min(pTop, pBot) / (stepP * every)), k1 = Math.floor(Math.max(pTop, pBot) / (stepP * every));
   for (let k = k0; k <= k1; k++) { const p = k * stepP * every, y = yOf(p); if (y < top + 6 || y > bot - 6) continue; ctx.fillText(fmtP(p), x0 + 4, y); }
   if (lastPrice) {
     const y = yOf(lastPrice);
-    if (y > top && y < bot) { ctx.fillStyle = C.acc; ctx.fillRect(x0, y - 8, W - x0, 16); ctx.fillStyle = '#111'; ctx.font = 'bold 11px ui-monospace,Menlo,monospace'; ctx.fillText(fmtP(lastPrice), x0 + 4, y); }
+    if (y > top && y < bot) { ctx.fillStyle = lastCol(); ctx.fillRect(x0, y - 9, W - x0, 18); ctx.fillStyle = '#ffffff'; ctx.font = 'bold 11px ui-monospace,Menlo,monospace'; ctx.fillText(fmtP(lastPrice), x0 + 4, y); }
   }
   ctx.textBaseline = 'alphabetic';
 }
 
 function drawFP() {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
-  const ks = sortedKeys();
+  const ks = S.tf >= 1440 ? sortedKeys().filter(tradingDay) : sortedKeys();
   if (!ks.length) { msg(loading || 'Waiting for trades…'); return; }
   const AX = 58, VPW = small() ? 62 : 110, BOT = 76;
   const x1 = W - AX - VPW, plotH = H - BOT, midY = plotH / 2, step = S.step;
@@ -802,24 +857,28 @@ function drawFP() {
   for (const {c} of vis) for (const v of c.cells.values()) { if (v[0] > maxCell) maxCell = v[0]; if (v[1] > maxCell) maxCell = v[1]; }
   const va = calcVA(prof);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
+  gridH(yOf, 0, x1, 0, plotH, rowH, step);
+  const kEvery = Math.max(1, Math.ceil(70 / colW));
+  gridV(vis.filter(v => Math.round((v.c.t / 60000) / S.tf) % kEvery === 0).map(v => v.x + colW / 2), 0, plotH);
   if (va) {
-    ctx.fillStyle = 'rgba(59,130,246,0.05)';
+    ctx.fillStyle = C.vaFill;
     const yA = yOf((va.vah + 1) * step), yB = yOf(va.val * step); ctx.fillRect(0, yA, x1, yB - yA);
   }
   drawWalls(yOf, x1, plotH, 'zone');
   for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, rowH, maxCell, plotH);
   if (va) {
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(59,130,246,.75)';
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = C.vaLine;
     for (const p of [(va.vah + 1) * step, va.val * step]) { const y = Math.round(yOf(p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); }
-    ctx.setLineDash([]); ctx.strokeStyle = 'rgba(250,204,21,.8)'; const y = Math.round(yOf((va.poc + 0.5) * step)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke();
+    ctx.setLineDash([]); ctx.strokeStyle = C.pocLine; const y = Math.round(yOf((va.poc + 0.5) * step)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke();
   }
   drawWalls(yOf, x1, plotH, 'label');
+  lastLine(yOf, x1, plotH);
   ctx.restore();
   drawProfile(x1, VPW, yOf, rowH, plotH, va);
   priceAxis(W - AX, yOf, 0, plotH, rowH, step);
   // bottom panel: time, delta, volume, CVD
-  ctx.fillStyle = C.panel || '#10141d'; ctx.fillRect(0, plotH, W, BOT);
-  ctx.strokeStyle = C.grid; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
+  ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, W, BOT);
+  ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
   ctx.font = '11px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
   let cvd = 0; const cvdAt = new Map();
   for (const k of ks) { const c = candles.get(k); if (c.t >= sessStart) cvd += c.buy - c.sell; cvdAt.set(k, c.t >= sessStart ? cvd : NaN); }
@@ -830,7 +889,7 @@ function drawFP() {
   for (const {c, x} of vis) {
     const cx = x + colW / 2, d = c.buy - c.sell;
     if (x + colW < 0) continue;
-    ctx.fillStyle = C.dim; ctx.fillText(S.tf >= 60 ? (colW >= 70 ? tFmtD.format(c.t) : tFmt.format(c.t)) : tFmt.format(c.t), cx, plotH + 12);
+    ctx.fillStyle = C.dim; if (Math.round((c.t / 60000) / S.tf) % kEvery === 0) ctx.fillText(S.tf >= 1440 ? tFmtDay.format(c.t + 43200000) : S.tf >= 60 ? (colW >= 70 ? tFmtD.format(c.t) : tFmt.format(c.t)) : tFmt.format(c.t), cx, plotH + 12);
     ctx.fillStyle = d >= 0 ? C.buy : C.sell; ctx.fillText((d >= 0 ? '+' : '-') + fmtQ(Math.abs(d)), cx, plotH + 26);
     ctx.fillStyle = C.dim; ctx.fillText(fmtQ(c.buy + c.sell), cx, plotH + 39);
     const v = cvdAt.get(c.t);
@@ -853,11 +912,11 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
     const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.globalAlpha = 0.85; ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo))); ctx.globalAlpha = 1;
     return;
   }
-  // layout:  [ sells column ][ candle ][ buys column ]
-  const gap = Math.max(4, Math.round(cw * 0.07)), inner = cw - gap;
-  const bodyW = Math.max(5, Math.min(14, Math.round(inner * 0.13)));
-  const cellW = Math.floor((inner - bodyW - 4) / 2);
-  const xS = Math.round(x + gap / 2), xBody = xS + cellW + 2, xB = xBody + bodyW + 2, cxb = xBody + bodyW / 2;
+  // layout:  [ sells column ] gap [ candle ] gap [ buys column ]   + space to the next candle
+  const gap = Math.max(10, Math.round(cw * 0.14)), inner = cw - gap;
+  const bodyW = Math.max(5, Math.min(16, Math.round(inner * 0.13))), pad = Math.max(3, Math.round(inner * 0.05));
+  const cellW = Math.floor((inner - bodyW - 2 * pad) / 2);
+  const xS = Math.round(x + gap / 2), xBody = xS + cellW + pad, xB = xBody + bodyW + pad, cxb = xBody + bodyW / 2;
   ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(cxb) + 0.5, yOf(c.h)); ctx.lineTo(Math.round(cxb) + 0.5, yOf(c.l)); ctx.stroke();
   const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.fillRect(xBody + 1, Math.min(yo, yc), bodyW - 2, Math.max(1, Math.abs(yc - yo)));
   let pocR = null, pv = -1, lo = Infinity;
@@ -866,7 +925,9 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   const fs = Math.max(8, Math.min(12, Math.floor(rowH - 4), Math.floor(cellW / 3.3)));
   const mono = `${fs}px ui-monospace,Menlo,monospace`, monoB = `bold ${fs}px ui-monospace,Menlo,monospace`;
   ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-  const shade = (rgb, v) => `rgba(${rgb},${(0.08 + 0.62 * Math.sqrt(Math.min(1, v / mx))).toFixed(3)})`;
+  const mixc = (a, b, t) => `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`;
+  const lvl = v => Math.sqrt(Math.min(1, v / mx));
+  const txtOn = (t, strong) => strong || t > 0.6 || S.theme === 'dark' ? '#ffffff' : C.cellTxt;
   for (const [r, v] of c.cells) {
     const yTop = yOf((r + 1) * step);
     if (yTop > plotH || yTop + rowH < 0) continue;
@@ -874,18 +935,19 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
     const bi = v[1] >= MINIMB && v[1] >= S.imb * Math.max(below ? below[0] : 0, 0.01);     // buyers vs sellers one row lower
     const si = v[0] >= MINIMB && v[0] >= S.imb * Math.max(above ? above[1] : 0, 0.01);     // sellers vs buyers one row higher
     const h = Math.max(1, rowH - 1), y = yTop + 0.5;
-    ctx.fillStyle = poc ? '#5d6675' : si ? '#c62828' : shade('239,83,80', v[0]); ctx.fillRect(xS, y, cellW, h);
-    ctx.fillStyle = poc ? '#5d6675' : bi ? '#0f8a6c' : shade('38,166,154', v[1]); ctx.fillRect(xB, y, cellW, h);
+    const ls = lvl(v[0]), lb = lvl(v[1]);
+    ctx.fillStyle = poc ? C.pocCell : si ? C.sellImb : mixc(C.sellLo, C.sellHi, ls); ctx.fillRect(xS, y, cellW, h);
+    ctx.fillStyle = poc ? C.pocCell : bi ? C.buyImb : mixc(C.buyLo, C.buyHi, lb); ctx.fillRect(xB, y, cellW, h);
     if (showText) {
       const ty = yTop + rowH / 2;
-      ctx.font = si ? monoB : mono; ctx.fillStyle = v[0] > 0 ? '#f2f5f8' : 'rgba(242,245,248,.35)'; ctx.fillText(fmtQ(v[0]), xS + cellW / 2, ty);
-      ctx.font = bi ? monoB : mono; ctx.fillStyle = v[1] > 0 ? '#f2f5f8' : 'rgba(242,245,248,.35)'; ctx.fillText(fmtQ(v[1]), xB + cellW / 2, ty);
+      ctx.font = si ? monoB : mono; ctx.fillStyle = txtOn(ls, si || poc); ctx.globalAlpha = v[0] > 0 ? 1 : 0.4; ctx.fillText(fmtQ(v[0]), xS + cellW / 2, ty);
+      ctx.font = bi ? monoB : mono; ctx.fillStyle = txtOn(lb, bi || poc); ctx.globalAlpha = v[1] > 0 ? 1 : 0.4; ctx.fillText(fmtQ(v[1]), xB + cellW / 2, ty); ctx.globalAlpha = 1;
     }
   }
   const sg = c.sig;
   for (const st of (sg && sg.stacked) || []) {          // 3+ stacked imbalances: bar on the outer edge
     const yA = yOf((st.to + 1) * step), yB = yOf(st.from * step);
-    ctx.fillStyle = st.side > 0 ? '#2ee6b0' : '#ff5a5a';
+    ctx.fillStyle = st.side > 0 ? C.buyImb : C.sellImb;
     ctx.fillRect(st.side > 0 ? xB + cellW - 3 : xS, yA, 3, yB - yA);
   }
   // under the candle: column totals + Delta / Total box
@@ -896,23 +958,24 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   if (c.partial) { ctx.fillStyle = C.dim; ctx.font = '10px sans-serif'; ctx.fillText('partial', cxb, yOf(c.h) - (sg && sg.absSell ? 34 : 8)); }
   if (cellW >= 20 && yb < plotH) {
     ctx.font = mono;
-    ctx.fillStyle = '#ff8a80'; ctx.fillText(fmtQ(c.sell), xS + cellW / 2, yb + 7);
-    ctx.fillStyle = '#5ee6c0'; ctx.fillText(fmtQ(c.buy), xB + cellW / 2, yb + 7);
+    ctx.fillStyle = C.sellTxt; ctx.fillText(fmtQ(c.sell), xS + cellW / 2, yb + 7);
+    ctx.fillStyle = C.buyTxt; ctx.fillText(fmtQ(c.buy), xB + cellW / 2, yb + 7);
     const bx = xS, bw = xB + cellW - xS, by = yb + 15, bh = 2 * fs + 12, d = c.buy - c.sell;
     if (by < plotH) {
-      ctx.fillStyle = '#161b22'; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = '#30363d'; ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.fillStyle = C.boxBg; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = C.boxLine; ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
       ctx.textAlign = 'left'; ctx.fillStyle = C.dim; ctx.font = `${fs}px -apple-system,sans-serif`;
       ctx.fillText('Delta', bx + 4, by + 4 + fs / 2 + 1); ctx.fillText('Total', bx + 4, by + 8 + fs * 1.5 + 1);
       ctx.textAlign = 'right'; ctx.font = monoB;
-      ctx.fillStyle = d >= 0 ? '#5ee6c0' : '#ff8a80'; ctx.fillText((d >= 0 ? '+' : '−') + fmtQ(Math.abs(d)), bx + bw - 4, by + 4 + fs / 2 + 1);
-      ctx.fillStyle = '#e6edf3'; ctx.fillText(fmtQ(c.buy + c.sell), bx + bw - 4, by + 8 + fs * 1.5 + 1);
+      ctx.fillStyle = d >= 0 ? C.buyTxt : C.sellTxt; ctx.fillText((d >= 0 ? '+' : '−') + fmtQ(Math.abs(d)), bx + bw - 4, by + 4 + fs / 2 + 1);
+      ctx.fillStyle = C.txt; ctx.fillText(fmtQ(c.buy + c.sell), bx + bw - 4, by + 8 + fs * 1.5 + 1);
     }
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 function tri(x, y, dir, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + dir * 10); ctx.lineTo(x + 6, y + dir * 10); ctx.closePath(); ctx.fill(); }
 function drawProfile(x0, w, yOf, rowH, plotH, va) {
-  ctx.fillStyle = '#0d1119'; ctx.fillRect(x0, 0, w, plotH);
+  ctx.fillStyle = C.side; ctx.fillRect(x0, 0, w, plotH);
+  ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x0 + 0.5, 0); ctx.lineTo(x0 + 0.5, plotH); ctx.stroke();
   if (!va) return;
   const step = S.step;
   for (const [r, v] of prof) {
@@ -936,8 +999,7 @@ function drawProfile(x0, w, yOf, rowH, plotH, va) {
 }
 
 // heatmap colour table: dark blue -> cyan -> yellow -> white
-const LUT = (() => {
-  const stops = [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]];
+function makeLUT(stops) {
   const out = new Uint8ClampedArray(256 * 3);
   for (let i = 0; i < 256; i++) {
     const t = i / 255; let k = 0; while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
@@ -945,7 +1007,14 @@ const LUT = (() => {
     for (let j = 0; j < 3; j++) out[i * 3 + j] = c0[j] + (c1[j] - c0[j]) * f;
   }
   return out;
-})();
+}
+let LUT = makeLUT(C.hm);
+function applyTheme() {
+  C = THEMES[S.theme === 'dark' ? 'dark' : 'light']; LUT = makeLUT(C.hm);
+  document.body.classList.toggle('light', S.theme !== 'dark');
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = C.panel;
+  dirty = true;
+}
 const off = document.createElement('canvas'), octx = off.getContext('2d');
 function drawHM() {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
@@ -974,7 +1043,7 @@ function drawHM() {
   if (vis.length && nRows > 0) {
     off.width = secsVis; off.height = nRows;
     const img = octx.createImageData(secsVis, nRows), D = img.data;
-    for (let i = 0; i < D.length; i += 4) { D[i] = 11; D[i + 1] = 14; D[i + 2] = 20; D[i + 3] = 255; }
+    for (let i = 0; i < D.length; i += 4) { D[i] = LUT[0]; D[i + 1] = LUT[1]; D[i + 2] = LUT[2]; D[i + 3] = 255; }
     for (let ci = 0; ci < vis.length; ci++) {
       const c = vis[ci], xi = c.t - tStart, nxt = ci + 1 < vis.length ? Math.min(vis[ci + 1].t - tStart, xi + 3) : xi + 1;
       for (let yi = 0; yi < nRows; yi++) {
@@ -988,37 +1057,40 @@ function drawHM() {
     const rowPx = hs / hmV.dpp;
     ctx.drawImage(off, 0, 0, secsVis, nRows, x1 - secsVis * hmV.pps, yOf((rTop + 1) * hs), secsVis * hmV.pps, nRows * rowPx);
   }
-  // price line + trade dots
+  // grid, price line + trade dots
   const xOf = t => x1 - (tEnd - t + 1) * hmV.pps + hmV.pps / 2;
-  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.4; ctx.beginPath();
+  { const ev = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800, xs = [];
+    for (let t = Math.ceil(tStart / ev) * ev; t <= tEnd; t += ev) xs.push(xOf(t));
+    ctx.save(); ctx.globalAlpha = S.theme === 'dark' ? 0.5 : 0.8; gridV(xs, 0, plotH); gridH(yOf, 0, x1, 0, plotH, hs / hmV.dpp, hs); ctx.restore(); }
+  ctx.strokeStyle = C.price; ctx.lineWidth = 1.4; ctx.beginPath();
   let started = false;
   for (let t = tStart; t <= tEnd; t++) { const o = secs.get(t); if (!o) continue; const x = xOf(t), y = yOf(o.last); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
   ctx.stroke(); ctx.lineWidth = 1;
   for (let t = tStart; t <= tEnd; t++) {
     const o = secs.get(t); if (!o) continue;
     const x = xOf(t);
-    if (o.b >= S.big) dot(x, yOf(o.pb / o.b), o.b, 'rgba(38,200,170,.75)');
-    if (o.s >= S.big) dot(x, yOf(o.ps / o.s), o.s, 'rgba(255,90,90,.75)');
+    if (o.b >= S.big) dot(x, yOf(o.pb / o.b), o.b, C.dotB);
+    if (o.s >= S.big) dot(x, yOf(o.ps / o.s), o.s, C.dotS);
   }
   // current book panel
-  ctx.fillStyle = '#0d1119'; ctx.fillRect(x1, 0, BW, plotH);
+  ctx.fillStyle = C.side; ctx.fillRect(x1, 0, BW, plotH);
   let mx = 0; for (let r = rBot; r <= rTop; r++) { const v = lastCol.vals[r - lastCol.base]; if (v > mx) mx = v; }
   const rowPx = hs / hmV.dpp;
   for (let r = rBot; r <= rTop; r++) {
     const v = lastCol.vals[r - lastCol.base]; if (!(v > 0)) continue;
     const p = r * hs, isBid = p + hs <= lastCol.ba + 1e-9 && p < lastCol.bb + 1e-9;
     const len = (BW - 4) * v / (mx || 1);
-    ctx.fillStyle = isBid ? 'rgba(38,166,154,.85)' : 'rgba(239,83,80,.85)';
+    ctx.fillStyle = `rgba(${isBid ? C.buyRGB : C.sellRGB},.85)`;
     ctx.fillRect(x1 + 2, yOf((r + 1) * hs) + 0.5, len, Math.max(1, rowPx - 1));
   }
   ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('book', x1 + 4, 12);
   if (S.walls) for (const w of walls) {
     const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
-    ctx.strokeStyle = w.side > 0 ? 'rgba(38,166,154,.9)' : 'rgba(239,83,80,.9)'; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(${w.side > 0 ? C.buyRGB : C.sellRGB},.9)`; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
   }
   priceAxis(W - AX, yOf, 0, plotH, rowPx, hs);
   // time axis
-  ctx.fillStyle = '#10141d'; ctx.fillRect(0, plotH, W, TB);
+  ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, W, TB); ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
   ctx.fillStyle = C.dim; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
   const every = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800;
   for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) ctx.fillText(tFmt.format(t * 1000), xOf(t), plotH + 13);
@@ -1138,15 +1210,65 @@ $('#zIn').onclick = () => zoom(1.2); $('#zOut').onclick = () => zoom(1 / 1.2);
 $('#zLive').onclick = () => { fpV.follow = hmV.follow = true; dirty = true; };
 
 // ---------------------------------------------------------------- tabs, settings, toast, sound
+function setTf(tf) {                  // quick timeframe bar
+  if (tf === S.tf) return;
+  S.stepTf = S.stepTf || {}; S.stepTf[S.tf] = S.step;
+  S.tf = tf; S.step = S.stepTf[tf] || STEPDEF[tf] || S.step; saveS();
+  fpV.off = 0; fpV.follow = true; renderTools(); reloadFP();
+}
+function renderTools() {
+  document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', +b.dataset.tf === S.tf));
+  $('#tStep').textContent = `rows $${S.step}`;
+}
+document.querySelectorAll('#tools button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
+// up / down day - same rule as the bot: yesterday's daily close above / below its 20-day EMA (MT5 days, Mon-Fri)
+let dayT = null;
+async function loadDayTrend() {
+  if (S.sym !== 'XAUUSDT' && S.sym !== 'XAGUSDT') { dayT = null; renderDay(); return; }
+  try {
+    let all = [], end = Date.now();
+    for (let i = 0; i < 3; i++) {
+      const arr = await getJSON(`/fapi/v1/klines?symbol=${S.sym}&interval=1h&endTime=${end}&limit=1500`);
+      if (!arr.length) break;
+      all = arr.concat(all); end = arr[0][0] - 1;
+      if (arr.length < 1500) break;
+    }
+    const days = new Map();
+    for (const k of all) { const ds = mt5Day(k[0]); let d = days.get(ds); if (!d) { d = {t: ds, o: +k[1], c: +k[4]}; days.set(ds, d); } d.c = +k[4]; }
+    const today = mt5Day(Date.now());
+    const done = [...days.values()].filter(d => d.t < today && tradingDay(d.t)).sort((a, b) => a.t - b.t);
+    if (done.length < 21) { dayT = null; renderDay(); return; }
+    const k = 2 / 21; let ema = done[0].c;
+    for (let i = 1; i < done.length; i++) ema = done[i].c * k + ema * (1 - k);
+    const y = done[done.length - 1], td = days.get(today);
+    dayT = {dir: y.c > ema ? 1 : -1, yc: y.c, ema, yt: y.t, open: td && tradingDay(today) ? td.o : null, weekend: !tradingDay(today), at: Date.now(), today};
+  } catch (e) { dayT = null; }
+  renderDay();
+}
+function renderDay() {
+  const b = $('#dayB'); if (!b) return;
+  if (!dayT) { b.className = 'day na'; b.textContent = 'day trend …'; return; }
+  const ch = dayT.open && lastPrice ? lastPrice - dayT.open : null;
+  b.className = 'day ' + (dayT.dir > 0 ? 'up' : 'dn');
+  b.textContent = (dayT.dir > 0 ? '▲ UP DAY' : '▼ DOWN DAY') + (dayT.weekend ? ' · Mon' : ch != null ? ` ${ch >= 0 ? '+' : '−'}${Math.abs(ch).toFixed(2)}` : '');
+}
+$('#dayB').onclick = () => {
+  if (!dayT) { toast('Daily trend not loaded yet.'); return; }
+  const ch = dayT.open && lastPrice ? lastPrice - dayT.open : null;
+  toast(`${dayT.dir > 0 ? 'UP day — buys only' : 'DOWN day — sells only'} (same rule as your bot): last daily close ${fmtP(dayT.yc)} is ${dayT.dir > 0 ? 'above' : 'below'} its 20-day average ${fmtP(dayT.ema)}.` +
+    (dayT.weekend ? ' Gold is closed for the weekend — this is the trend for Monday.' : ch != null ? ` Today so far: ${ch >= 0 ? '+' : '−'}$${Math.abs(ch).toFixed(2)} from the open (${fmtP(dayT.open)}).` : ''));
+};
+setInterval(() => { if (!dayT || Date.now() - dayT.at > 3600000 || mt5Day(Date.now()) !== dayT.today) loadDayTrend(); else renderDay(); }, 5000);
 function setTab(t) {
   S.tab = t; saveS();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   const panel = t === 'tape' || t === 'srv';
+  $('#tools').classList.toggle('hidden', t !== 'fp');
   $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
+const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
   $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
@@ -1157,13 +1279,16 @@ $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
   const old = Object.assign({}, S);
-  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit') ? v : (parseFloat(v) || 0); }
+  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit' || k === 'theme') ? v : (parseFloat(v) || 0); }
+  S.stepTf = S.stepTf || {}; S.stepTf[S.tf] = S.step;
+  if (S.theme !== old.theme) applyTheme();
+  renderTools();
   S.sound = $('#sSnd').checked;
   const mt5 = parseFloat($('#sMt5').value);
   if (mt5 > 0 && lastPrice) { S.offset = Math.round((lastPrice - mt5) * 100) / 100; S.offMode = 'manual'; }
   if (S.sym !== old.sym) { S.autoOff = null; S.autoOffT = 0; }
   saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
-  if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); return; }
+  if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); loadDayTrend(); return; }
   if (S.tf !== old.tf || S.step !== old.step) reloadFP();
   else if (S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
   if (S.hstep !== old.hstep) { cols = []; histBusy = false; startGen++; loadBookHistory(HIST_MIN); }
@@ -1200,7 +1325,9 @@ setTimeout(pollIndex, 1500);
 setInterval(() => { if (lastPrice && S.tab !== 'tape' && S.tab !== 'srv') dirty = true; }, 1000);
 setInterval(() => { if (S.tab === 'srv' && document.visibilityState === 'visible') loadSrvStatus(); }, 15000);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+applyTheme(); renderTools();
 setTab(['fp', 'hm', 'tape', 'srv'].includes(S.tab) ? S.tab : 'fp');
+loadDayTrend();
 resize();
 requestAnimationFrame(frame);
 start();
