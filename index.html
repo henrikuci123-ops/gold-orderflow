@@ -43,6 +43,17 @@ main{position:relative;flex:1;min-height:0}
 #tools button.on{color:var(--acc);background:var(--sel)}
 #tools .sep{flex:1}
 #tools .grp{display:flex;gap:2px}
+#hmPanel{position:absolute;top:6px;right:8px;z-index:5;width:290px;max-width:calc(100% - 16px);max-height:calc(100% - 12px);overflow:auto;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px}
+#hmPanel .ph{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 6px}
+#hmPanel .pr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}
+#hmPanel input[type=range]{width:130px;accent-color:var(--acc)}
+#hmPanel select{min-width:0;font-size:13px;padding:3px 6px}
+#hmPanel .pals{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#hmPanel .pals button{height:34px;border-radius:7px;border:2px solid transparent;color:#fff;font-size:12px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.8);cursor:pointer}
+#hmPanel .pals button.on{border-color:var(--acc)}
+#hmPanel .pb{display:flex;gap:8px;margin-top:10px}
+#hmPanel .pb button{flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-weight:600}
+#hmPanel .pb button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 #tools .st2{font-size:11px;color:var(--dim);white-space:nowrap;padding-right:4px}
 .zoom button.day{font-size:12px;font-weight:700;color:#fff;border:0;padding:0 10px;white-space:nowrap}
 .zoom button.day.up{background:var(--buy)}.zoom button.day.dn{background:var(--sell)}.zoom button.day.na{background:var(--dim)}
@@ -94,9 +105,23 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="tape">Tape</button>
   <button data-tab="srv">Server</button>
 </nav>
-<div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmc="0">Line</button><button data-hmc="15">15s</button><button data-hmc="30">30s</button><button data-hmc="60">1m</button><button data-hmc="300">5m</button><button data-hmc="900">15m</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
+<div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmc="0">Line</button><button data-hmc="15">15s</button><button data-hmc="30">30s</button><button data-hmc="60">1m</button><button data-hmc="300">5m</button><button data-hmc="900">15m</button><button id="hmStyleB">Style ▾</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
 <main>
   <canvas id="cv"></canvas>
+  <div id="hmPanel" class="hidden">
+    <div class="ph">Colours</div><div class="pals" id="hmPals"></div>
+    <div class="pr"><span>Contrast</span><input type="range" id="hmGain" min="0" max="100"></div>
+    <div class="pr"><span>Hide small orders</span><input type="range" id="hmFloor" min="0" max="40"></div>
+    <div class="ph">Volume bubbles</div>
+    <div class="pr"><span>Show bubbles</span><input type="checkbox" id="hmBub"></div>
+    <div class="pr"><span>Bubble size</span><input type="range" id="hmBubSize" min="20" max="300"></div>
+    <div class="pr"><span>Smallest bubble</span><select id="hmBubMin"><option value="2">0.02 lot</option><option value="5">0.05 lot</option><option value="10">0.1 lot</option><option value="25">0.25 lot</option><option value="50">0.5 lot</option><option value="100">1 lot</option></select></div>
+    <div class="ph">Panels</div>
+    <div class="pr"><span>Volume bars (bottom)</span><input type="checkbox" id="hmVbars"></div>
+    <div class="pr"><span>Book numbers (COB)</span><input type="checkbox" id="hmCob"></div>
+    <div class="pr"><span>Session volume (SVP)</span><input type="checkbox" id="hmSvp"></div>
+    <div class="pb"><button id="hmReset">Reset</button><button id="hmClose" class="pri">Done</button></div>
+  </div>
   <div id="tape" class="hidden">
     <div class="card"><h3>Buying vs selling (aggressive)</h3><div class="flow" id="flow"></div></div>
     <div class="card"><h3>Order walls now</h3><div id="wallList"><div class="d">Building the order book — walls appear after about a minute.</div></div></div>
@@ -154,7 +179,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', stepTf: {}, hmc: 60, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', stepTf: {}, hmc: 60, hmPal: 'bookmap', hmGain: 50, hmFloor: 6, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -584,6 +609,7 @@ function trimRaw() {
 }
 function pruneSecs() {
   const lim = Math.floor(Date.now() / 1000) - 7200;
+  for (const k of [...hsecs.keys()]) if (k < lim) hsecs.delete(k);
   for (const k of secs.keys()) { if (k < lim) secs.delete(k); else break; }
 }
 async function start() {
@@ -665,6 +691,7 @@ function mergeCols(hist) {        // put recorded columns only where the app has
   return add.length;
 }
 async function loadBookHistory(minutes) {
+  loadSecsHistory(minutes);
   if (S.sym !== 'XAUUSDT') { srvHist = {state: 'the server records XAUUSDT only'}; return; }
   const hs = S.hstep, k = Math.round(hs / 0.25);
   if (k < 1 || Math.abs(k * 0.25 - hs) > 1e-9) { srvHist = {state: 'heatmap row size $0.10 is finer than the recording ($0.25) — no history'}; return; }
@@ -1012,6 +1039,31 @@ function makeLUT(stops) {
   return out;
 }
 let LUT = makeLUT(C.hm);
+// heatmap colour schemes (Bookmap-style is the default; the dark ones draw the heatmap tab dark)
+const HMPAL = {
+  bookmap: {name: 'Bookmap', dark: true, gamma: 0.9, stops: [[0, [8, 12, 22]], [0.07, [12, 30, 62]], [0.2, [20, 78, 150]], [0.36, [52, 150, 225]], [0.5, [150, 212, 245]], [0.64, [245, 236, 120]], [0.8, [255, 160, 30]], [1, [255, 38, 18]]]},
+  thermal: {name: 'Thermal', dark: true, gamma: 0.8, stops: [[0, [6, 6, 10]], [0.15, [50, 18, 80]], [0.4, [160, 30, 90]], [0.65, [235, 100, 30]], [0.85, [250, 215, 70]], [1, [255, 255, 235]]]},
+  ocean: {name: 'Ocean', dark: true, gamma: 0.6, stops: [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]]},
+  light: {name: 'Light', dark: false, gamma: 0.5, stops: [[0, [255, 255, 255]], [0.12, [225, 236, 255]], [0.35, [130, 175, 255]], [0.6, [35, 95, 220]], [0.82, [250, 160, 35]], [1, [205, 25, 35]]]}
+};
+const lutCache = {};
+const hmPal = () => HMPAL[S.hmPal] ? S.hmPal : 'bookmap';
+const hmLUT = () => lutCache[hmPal()] || (lutCache[hmPal()] = makeLUT(HMPAL[hmPal()].stops));
+let hsecs = new Map(), hsecsFrom = Infinity;          // per-second trades recorded by the server (before the app opened)
+const secAt = t => secs.get(t) || hsecs.get(t);
+async function loadSecsHistory(minutes) {
+  if (S.sym !== 'XAUUSDT') return;
+  try {
+    const r = await fetch(`${SERVER}/api/secs?minutes=${Math.round(minutes)}`, {cache: 'no-store'});
+    if (!r.ok) return;
+    const d = await r.json();
+    for (const [t, o, h, l, c, b, sv, vb, vs] of d.s) hsecs.set(t, {o, h, l, last: c, b, s: sv, pb: b * vb, ps: sv * vs});
+    const lim = Math.floor(Date.now() / 1000) - 7300;
+    for (const k of [...hsecs.keys()]) if (k < lim) hsecs.delete(k);
+    hsecsFrom = Infinity; for (const k of hsecs.keys()) if (k < hsecsFrom) hsecsFrom = k;
+    dirty = true;
+  } catch (e) {}
+}
 function applyTheme() {
   C = THEMES[S.theme === 'dark' ? 'dark' : 'light']; LUT = makeLUT(C.hm);
   document.body.classList.toggle('light', S.theme !== 'dark');
@@ -1019,57 +1071,79 @@ function applyTheme() {
   dirty = true;
 }
 const off = document.createElement('canvas'), octx = off.getContext('2d');
-function drawHM() {
+function drawHM() {                       // drawn with the heatmap's own (dark/light) colours
+  const pal = HMPAL[hmPal()], saved = C;
+  C = pal.dark ? THEMES.dark : THEMES.light;
+  try { drawHM2(hmLUT()); } finally { C = saved; }
+}
+function drawHM2(LUTh) {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   if (!cols.length) { msg(loading || 'Building the order book…'); return; }
-  const AX = 58, BW = small() ? 54 : 100, TB = 18;
-  const x1 = W - AX - BW, plotH = H - TB, midY = plotH / 2;
+  const sm = small(), AX = 58, BW = S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW = S.svp ? (sm ? 40 : 84) : 0, TB = 18, VB = S.vbars ? (sm ? 34 : 50) : 0;
+  const x1 = W - AX - BW - SW, plotH = H - TB, midY = plotH / 2;
   const lastCol = cols[cols.length - 1], nowSec = lastCol.t;
   if (hmV.follow) { hmV.off = 0; hmV.center = lastPrice || (lastCol.bb + lastCol.ba) / 2; }
   if (!hmV.center) hmV.center = (lastCol.bb + lastCol.ba) / 2;
   const yOf = p => midY - (p - hmV.center) / hmV.dpp;
   yOf.inv = y => hmV.center + (midY - y) * hmV.dpp;
-  const hs = lastCol.hs || S.hstep;
+  const hs = lastCol.hs || S.hstep, rowPx = hs / hmV.dpp;
   const rTop = Math.floor(yOf.inv(0) / hs), rBot = Math.floor(yOf.inv(plotH) / hs);
   const nRows = Math.min(2000, rTop - rBot + 1);
   const secsVis = Math.max(1, Math.ceil(x1 / hmV.pps));
   const tEnd = nowSec - Math.round(hmV.off), tStart = tEnd - secsVis + 1;
-  // find visible columns
   let lo = 0, hi = cols.length;
   while (lo < hi) { const m = (lo + hi) >> 1; if (cols[m].t < tStart) lo = m + 1; else hi = m; }
   const vis = []; for (let i = lo; i < cols.length && cols[i].t <= tEnd; i++) if (cols[i].hs === hs) vis.push(cols[i]);
-  // reference level: 97th percentile of the newest visible column values in view
+  // brightness reference: 97th percentile of the newest columns in view, adjusted by the Contrast slider
   const sample = [];
   for (let i = Math.max(0, vis.length - 60); i < vis.length; i += 3) { const c = vis[i]; for (let r = rBot; r <= rTop; r++) { const v = c.vals[r - c.base]; if (v > 0) sample.push(v); } }
   sample.sort((a, b) => a - b);
-  const ref = sample.length ? sample[Math.floor(sample.length * 0.97)] : 1;
+  const ref = (sample.length ? sample[Math.floor(sample.length * 0.97)] : 1) / Math.pow(2, ((S.hmGain ?? 50) - 50) / 25);
+  const floor = (S.hmFloor ?? 6) / 100, gam = HMPAL[hmPal()].gamma || 0.5;
   if (vis.length && nRows > 0) {
     off.width = secsVis; off.height = nRows;
     const img = octx.createImageData(secsVis, nRows), D = img.data;
-    for (let i = 0; i < D.length; i += 4) { D[i] = LUT[0]; D[i + 1] = LUT[1]; D[i + 2] = LUT[2]; D[i + 3] = 255; }
+    for (let i = 0; i < D.length; i += 4) { D[i] = LUTh[0]; D[i + 1] = LUTh[1]; D[i + 2] = LUTh[2]; D[i + 3] = 255; }
     for (let ci = 0; ci < vis.length; ci++) {
       const c = vis[ci], xi = c.t - tStart, nxt = ci + 1 < vis.length ? Math.min(vis[ci + 1].t - tStart, xi + 30) : xi + 1;   // short gaps: keep the last book
       for (let yi = 0; yi < nRows; yi++) {
         const v = c.vals[rTop - yi - c.base]; if (!(v > 0)) continue;
-        const L = Math.min(255, Math.round(255 * Math.sqrt(Math.min(1, v / ref)))) * 3;
-        for (let xx = xi; xx < nxt && xx < secsVis; xx++) { const o = (yi * secsVis + xx) * 4; D[o] = LUT[L]; D[o + 1] = LUT[L + 1]; D[o + 2] = LUT[L + 2]; }
+        const f = v / ref; if (f < floor) continue;                 // 'Hide small orders' = lower cutoff
+        const L = Math.min(255, Math.round(255 * Math.pow(Math.min(1, (f - floor) / (1 - floor)), gam))) * 3;
+        for (let xx = Math.max(0, xi); xx < nxt && xx < secsVis; xx++) { const o = (yi * secsVis + xx) * 4; D[o] = LUTh[L]; D[o + 1] = LUTh[L + 1]; D[o + 2] = LUTh[L + 2]; }
       }
     }
     octx.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    const rowPx = hs / hmV.dpp;
     ctx.drawImage(off, 0, 0, secsVis, nRows, x1 - secsVis * hmV.pps, yOf((rTop + 1) * hs), secsVis * hmV.pps, nRows * rowPx);
   }
-  // grid, price line + trade dots
   const xOf = t => x1 - (tEnd - t + 1) * hmV.pps + hmV.pps / 2;
-  { const ev = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800, xs = [];
-    for (let t = Math.ceil(tStart / ev) * ev; t <= tEnd; t += ev) xs.push(xOf(t));
-    ctx.save(); ctx.globalAlpha = S.theme === 'dark' ? 0.5 : 0.8; gridV(xs, 0, plotH); gridH(yOf, 0, x1, 0, plotH, hs / hmV.dpp, hs); ctx.restore(); }
-  let secsFrom = Infinity; for (const k of secs.keys()) { secsFrom = k; break; }       // own trades start here; older: 1-min candles
+  const every = [15, 30, 60, 120, 300, 600, 900].find(s2 => s2 * hmV.pps >= 70) || 1800;
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
-  if (S.hmc > 0) {                                   // candles over the heatmap (like Bookmap / ATAS)
+  // dashed time grid (like Bookmap) + faint price grid
+  ctx.setLineDash([2, 4]); ctx.strokeStyle = HMPAL[hmPal()].dark ? 'rgba(255,255,255,.28)' : 'rgba(0,0,0,.18)'; ctx.beginPath();
+  for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) { const x = Math.round(xOf(t)) + 0.5; ctx.moveTo(x, 0); ctx.lineTo(x, plotH); }
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.save(); ctx.globalAlpha = 0.35; gridH(yOf, 0, x1, 0, plotH, rowPx, hs); ctx.restore();
+  // trades per bucket of ~9 px: bubbles + volume bars
+  let secsFrom = Infinity; for (const k of secs.keys()) { secsFrom = k; break; }
+  const psFrom = Math.min(secsFrom, hsecsFrom);
+  const B = Math.max(1, Math.ceil(9 / hmV.pps)), bk = [];
+  for (let t0 = Math.floor(tStart / B) * B; t0 <= tEnd; t0 += B) {
+    let b = 0, sv = 0, pb = 0, ps = 0;
+    for (let t = t0; t < t0 + B; t++) { const o = secAt(t); if (o) { b += o.b; sv += o.s; pb += o.pb; ps += o.ps; } }
+    if (b + sv > 0) bk.push({t: t0, b, s: sv, p: (pb + ps) / (b + sv)});
+  }
+  const bx = k => xOf(k.t + (B - 1) / 2);
+  if (S.vbars && bk.length) {
+    let mx = 0; for (const k of bk) if (k.b + k.s > mx) mx = k.b + k.s;
+    const w = Math.max(1, B * hmV.pps - 1);
+    for (const k of bk) { const h = Math.max(1, VB * (k.b + k.s) / mx); ctx.fillStyle = `rgba(${k.b >= k.s ? C.buyRGB : C.sellRGB},.8)`; ctx.fillRect(bx(k) - w / 2, plotH - h, w, h); }
+  }
+  // candles or price line
+  if (S.hmc > 0) {
     const tfs = S.hmc, w = tfs * hmV.pps, bw = Math.max(1, Math.min(w - 2, w * 0.62));
-    for (const c of hmCandles(tfs, tStart - tfs, tEnd, secsFrom)) {
+    for (const c of hmCandles(tfs, tStart - tfs, tEnd, psFrom)) {
       const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
       if (xL > x1 || xL + w < 0) continue;
       const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1.5, Math.abs(yc - yo));
@@ -1078,44 +1152,77 @@ function drawHM() {
       ctx.fillStyle = col; ctx.fillRect(cx - bw / 2, top, bw, hg);
       ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.strokeRect(cx - bw / 2 - 0.5, top - 0.5, bw + 1, hg + 1);
     }
-  } else {                                           // price line
+  }
+  // volume bubbles: size = traded volume, green = mostly buying, red = mostly selling
+  if (S.bub && bk.length) {
+    const minV = S.bubMin || 10, sc = (S.bubSize ?? 100) / 100, ref2 = Math.max(minV, S.big || 25);
+    const bb = bk.filter(k => k.b + k.s >= minV);
+    const tops = bb.slice().sort((a, b) => (b.b + b.s) - (a.b + a.s)).slice(0, 12).filter(k => k.b + k.s >= 3 * minV);
+    for (const k of bb) {
+      const v = k.b + k.s, r = Math.min(60, sc * (2.5 + 5 * Math.sqrt(v / ref2))), up = k.b >= k.s, x = bx(k), y = yOf(k.p);
+      ctx.fillStyle = up ? 'rgba(46,204,113,.5)' : 'rgba(231,76,60,.5)'; ctx.strokeStyle = up ? 'rgba(120,240,170,.95)' : 'rgba(255,130,115,.95)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.font = 'bold 11px -apple-system,sans-serif'; ctx.textAlign = 'center';
+    for (const k of tops) {
+      const v = k.b + k.s, r = Math.min(60, sc * (2.5 + 5 * Math.sqrt(v / ref2))), up = k.b >= k.s;
+      ctx.fillStyle = up ? '#4ee08a' : '#ff6b5b'; ctx.fillText(fmtQ(v), bx(k), yOf(k.p) + (up ? r + 12 : -r - 4));
+    }
+    ctx.textAlign = 'left';
+  }
+  if (S.hmc === 0) {
     ctx.strokeStyle = C.price; ctx.lineWidth = 1.4; ctx.beginPath();
     let started = false;
     const pt = (x, y) => { if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); };
-    for (const K of klines) { const t = K[0] / 1000; if (t + 60 > secsFrom || t > tEnd) break; if (t + 60 < tStart) continue; pt(xOf(t + 59), yOf(K[4])); }
-    for (let t = Math.max(tStart, secsFrom === Infinity ? tEnd + 1 : secsFrom); t <= tEnd; t++) { const o = secs.get(t); if (o) pt(xOf(t), yOf(o.last)); }
-    ctx.stroke();
+    for (const K of klines) { const t = K[0] / 1000; if (t + 60 > psFrom || t > tEnd) break; if (t + 60 < tStart) continue; pt(xOf(t + 59), yOf(K[4])); }
+    for (let t = Math.max(tStart, psFrom === Infinity ? tEnd + 1 : psFrom); t <= tEnd; t++) { const o = secAt(t); if (o) pt(xOf(t), yOf(o.last)); }
+    ctx.stroke(); ctx.lineWidth = 1;
   }
-  ctx.lineWidth = 1;
-  lastLine(yOf, x1, plotH);
+  if (lastPrice) {                                   // dashed current-price line
+    const y = Math.round(yOf(lastPrice)) + 0.5;
+    ctx.strokeStyle = HMPAL[hmPal()].dark ? 'rgba(255,255,255,.85)' : 'rgba(19,23,34,.8)'; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
+  }
   ctx.restore();
-  for (let t = tStart; t <= tEnd; t++) {
-    const o = secs.get(t); if (!o) continue;
-    const x = xOf(t);
-    if (o.b >= S.big) dot(x, yOf(o.pb / o.b), o.b, C.dotB);
-    if (o.s >= S.big) dot(x, yOf(o.ps / o.s), o.s, C.dotS);
-  }
-  // current book panel
-  ctx.fillStyle = C.side; ctx.fillRect(x1, 0, BW, plotH);
-  let mx = 0; for (let r = rBot; r <= rTop; r++) { const v = lastCol.vals[r - lastCol.base]; if (v > mx) mx = v; }
-  const rowPx = hs / hmV.dpp;
+  // COB: the order book right now, asks red above, bids green below, with sizes
+  const xb = x1;
+  ctx.fillStyle = C.side; ctx.fillRect(xb, 0, BW, plotH);
+  ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(xb + 0.5, 0); ctx.lineTo(xb + 0.5, plotH); ctx.stroke();
+  let mxb = 0; for (let r = rBot; r <= rTop; r++) { const v = lastCol.vals[r - lastCol.base]; if (v > mxb) mxb = v; }
+  const fsz = Math.max(8, Math.min(11, Math.floor(rowPx - 2)));
+  ctx.font = `${fsz}px ui-monospace,Menlo,monospace`; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
   for (let r = rBot; r <= rTop; r++) {
     const v = lastCol.vals[r - lastCol.base]; if (!(v > 0)) continue;
-    const p = r * hs, isBid = p + hs <= lastCol.ba + 1e-9 && p < lastCol.bb + 1e-9;
-    const len = (BW - 4) * v / (mx || 1);
-    ctx.fillStyle = `rgba(${isBid ? C.buyRGB : C.sellRGB},.85)`;
-    ctx.fillRect(x1 + 2, yOf((r + 1) * hs) + 0.5, len, Math.max(1, rowPx - 1));
+    const p = r * hs, isBid = p + hs <= lastCol.ba + 1e-9 && p < lastCol.bb + 1e-9, yT = yOf((r + 1) * hs);
+    ctx.fillStyle = `rgba(${isBid ? C.buyRGB : C.sellRGB},.75)`;
+    ctx.fillRect(xb + 2, yT + 0.5, (BW - 4) * v / (mxb || 1), Math.max(1, rowPx - 1));
+    if (S.cob && rowPx >= 10) { ctx.fillStyle = C.txt; ctx.fillText(fmtQ(v), xb + BW - 3, yT + rowPx / 2); }
   }
-  ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('book', x1 + 4, 12);
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('COB', xb + 4, 11);
   if (S.walls) for (const w of walls) {
     const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
-    ctx.strokeStyle = `rgba(${w.side > 0 ? C.buyRGB : C.sellRGB},.9)`; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(${w.side > 0 ? C.buyRGB : C.sellRGB},.95)`; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
+  }
+  // SVP: today's traded volume per price (session volume profile)
+  if (SW) {
+    const xs0 = xb + BW, st = S.step, sPx = st / hmV.dpp;
+    ctx.fillStyle = C.side; ctx.fillRect(xs0, 0, SW, plotH);
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(xs0 + 0.5, 0); ctx.lineTo(xs0 + 0.5, plotH); ctx.stroke();
+    let mxp = 0; for (const v of prof.values()) if (v[0] + v[1] > mxp) mxp = v[0] + v[1];
+    const fs2 = Math.max(8, Math.min(11, Math.floor(sPx - 2)));
+    ctx.font = `${fs2}px ui-monospace,Menlo,monospace`; ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    for (const [r, v] of prof) {
+      const yT = yOf((r + 1) * st); if (yT > plotH || yT + sPx < 0) continue;
+      const tot = v[0] + v[1];
+      ctx.fillStyle = `rgba(${v[1] >= v[0] ? C.buyRGB : C.sellRGB},.7)`; ctx.fillRect(xs0 + 2, yT + 0.5, (SW - 4) * tot / (mxp || 1), Math.max(1, sPx - 1));
+      if (sPx >= 10 && SW >= 60) { ctx.fillStyle = C.txt; ctx.fillText(fmtQ(tot), xs0 + SW - 3, yT + sPx / 2); }
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('SVP', xs0 + 4, 11);
   }
   priceAxis(W - AX, yOf, 0, plotH, rowPx, hs);
-  // time axis
   ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, W, TB); ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
   ctx.fillStyle = C.dim; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
-  const every = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800;
   for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) ctx.fillText(tFmt.format(t * 1000), xOf(t), plotH + 13);
   ctx.textAlign = 'left';
 }
@@ -1123,7 +1230,7 @@ function drawHM() {
 function hmCandles(tfs, t0, t1, secsFrom) {
   const items = [];
   if (tfs >= 60) for (const K of klines) { const t = K[0] / 1000; if (t + 60 > secsFrom || t > t1) break; if (t + 60 < t0) continue; items.push([t, K[1], K[2], K[3], K[4]]); }
-  for (let t = Math.max(t0, secsFrom === Infinity ? t1 + 1 : secsFrom); t <= t1; t++) { const o = secs.get(t); if (o && o.o != null) items.push([t, o.o, o.h, o.l, o.last]); }
+  for (let t = Math.max(t0, secsFrom === Infinity ? t1 + 1 : secsFrom); t <= t1; t++) { const o = secAt(t); if (o && o.o != null) items.push([t, o.o, o.h, o.l, o.last]); }
   const out = []; let cur = null;
   for (const [t, o, h, l, c] of items) {
     const k = t - (t % tfs);
@@ -1246,6 +1353,19 @@ $('#zIn').onclick = () => zoom(1.2); $('#zOut').onclick = () => zoom(1 / 1.2);
 $('#zLive').onclick = () => { fpV.follow = hmV.follow = true; dirty = true; };
 
 // ---------------------------------------------------------------- tabs, settings, toast, sound
+function hmPanelSync() {
+  $('#hmPals').innerHTML = Object.entries(HMPAL).map(([k, p]) => `<button data-pal="${k}" class="${k === hmPal() ? 'on' : ''}" style="background:linear-gradient(90deg,${p.stops.map(([t, c]) => `rgb(${c.join(',')}) ${Math.round(t * 100)}%`).join(',')})">${p.name}</button>`).join('');
+  document.querySelectorAll('#hmPals button').forEach(b => b.onclick = () => { S.hmPal = b.dataset.pal; saveS(); hmPanelSync(); dirty = true; });
+  $('#hmGain').value = S.hmGain ?? 50; $('#hmFloor').value = S.hmFloor ?? 6; $('#hmBub').checked = !!S.bub; $('#hmBubSize').value = S.bubSize ?? 100;
+  $('#hmBubMin').value = String(S.bubMin ?? 10); $('#hmVbars').checked = !!S.vbars; $('#hmCob').checked = !!S.cob; $('#hmSvp').checked = !!S.svp;
+}
+const hmIn = (id, k, f) => $(id).addEventListener('input', () => { S[k] = f($(id)); saveS(); dirty = true; });
+hmIn('#hmGain', 'hmGain', e => +e.value); hmIn('#hmFloor', 'hmFloor', e => +e.value); hmIn('#hmBubSize', 'bubSize', e => +e.value);
+hmIn('#hmBub', 'bub', e => e.checked ? 1 : 0); hmIn('#hmVbars', 'vbars', e => e.checked ? 1 : 0); hmIn('#hmCob', 'cob', e => e.checked ? 1 : 0); hmIn('#hmSvp', 'svp', e => e.checked ? 1 : 0);
+$('#hmBubMin').addEventListener('change', () => { S.bubMin = +$('#hmBubMin').value; saveS(); dirty = true; });
+$('#hmStyleB').onclick = () => { const p = $('#hmPanel'); if (p.classList.contains('hidden')) { hmPanelSync(); p.classList.remove('hidden'); } else p.classList.add('hidden'); };
+$('#hmClose').onclick = () => $('#hmPanel').classList.add('hidden');
+$('#hmReset').onclick = () => { for (const k of ['hmPal', 'hmGain', 'hmFloor', 'bub', 'bubSize', 'bubMin', 'vbars', 'cob', 'svp']) S[k] = DEF[k]; saveS(); hmPanelSync(); dirty = true; };
 function setTf(tf) {                  // quick timeframe bar
   if (tf === S.tf) return;
   S.stepTf = S.stepTf || {}; S.stepTf[S.tf] = S.step;
@@ -1254,11 +1374,11 @@ function setTf(tf) {                  // quick timeframe bar
 }
 function renderTools() {
   document.querySelectorAll('#tfFp button').forEach(b => b.classList.toggle('on', +b.dataset.tf === S.tf));
-  document.querySelectorAll('#tfHm button').forEach(b => b.classList.toggle('on', +b.dataset.hmc === (S.hmc || 0)));
+  document.querySelectorAll('#tfHm button[data-hmc]').forEach(b => b.classList.toggle('on', +b.dataset.hmc === (S.hmc || 0)));
   $('#tStep').textContent = `rows $${S.tab === 'hm' ? S.hstep : S.step}`;
 }
 document.querySelectorAll('#tfFp button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
-document.querySelectorAll('#tfHm button').forEach(b => b.onclick = () => { S.hmc = +b.dataset.hmc; saveS(); renderTools(); dirty = true; });
+document.querySelectorAll('#tfHm button[data-hmc]').forEach(b => b.onclick = () => { S.hmc = +b.dataset.hmc; saveS(); renderTools(); dirty = true; });
 // up / down day - same rule as the bot: yesterday's daily close above / below its 20-day EMA (MT5 days, Mon-Fri)
 let dayT = null;
 async function loadDayTrend() {
@@ -1301,7 +1421,7 @@ function setTab(t) {
   S.tab = t; saveS();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   const panel = t === 'tape' || t === 'srv';
-  $('#tools').classList.toggle('hidden', t !== 'fp' && t !== 'hm');
+  $('#tools').classList.toggle('hidden', t !== 'fp' && t !== 'hm'); if (t !== 'hm') $('#hmPanel').classList.add('hidden');
   $('#tfFp').classList.toggle('hidden', t !== 'fp'); $('#tfHm').classList.toggle('hidden', t !== 'hm'); renderTools();
   $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
