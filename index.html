@@ -121,7 +121,9 @@ input[type=checkbox]{width:22px;height:22px}
 'use strict';
 (() => {
 const API = 'https://fapi.binance.com';
-const WSB = 'wss://fstream.binance.com/stream?streams=';
+// Binance (since Apr 23 2026): trades only arrive on /market, the order book only on /public
+const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
+const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
 const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
@@ -392,25 +394,35 @@ function sampleBook() {
 }
 
 // ---------------------------------------------------------------- websocket + history
-let ws = null, backoff = 1000, wsGen = 0;
+let ws = null, wsBk = null, backoff = 1000, wsGen = 0;
 function status(txt, col) { $('#hSt').innerHTML = `<b style="background:${col}"></b>${txt}`; }
+function wsDown() { return !ws || ws.readyState > 1 || !wsBk || wsBk.readyState > 1; }
 function connect() {
   const gen = ++wsGen, s = S.sym.toLowerCase();
   try { if (ws) ws.close(); } catch (e) {}
-  ws = new WebSocket(WSB + `${s}@aggTrade/${s}@depth@500ms`);
-  ws.onopen = () => { if (gen !== wsGen) return; backoff = 1000; status(loading || 'live', '#22c55e'); syncBook(); if (!filling && lastId) gapFill(); };
-  ws.onmessage = ev => {
+  try { if (wsBk) wsBk.close(); } catch (e) {}
+  ws = new WebSocket(WS_MARKET + `${s}@aggTrade`);           // trades
+  wsBk = new WebSocket(WS_PUBLIC + `${s}@depth@500ms`);       // order book
+  const onmsg = ev => {
     if (gen !== wsGen) return;
     let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
     const d = msg.data; if (!d) return;
     if (d.e === 'aggTrade') onAgg(d); else if (d.e === 'depthUpdate') onDepth(d);
   };
-  ws.onclose = () => {
+  ws.onmessage = onmsg; wsBk.onmessage = onmsg;
+  ws.onopen = () => { if (gen !== wsGen) return; backoff = 1000; status(loading || 'live', '#22c55e'); if (!filling && lastId) gapFill(); };
+  wsBk.onopen = () => { if (gen !== wsGen) return; syncBook(); };
+  const onclose = () => {
     if (gen !== wsGen) return;
+    const g = ++wsGen;                                         // one socket dropped: restart both
+    try { ws.close(); } catch (e) {}
+    try { wsBk.close(); } catch (e) {}
     status('reconnecting…', '#f59e0b'); book.state = 'wait';
-    setTimeout(() => { if (gen === wsGen) connect(); }, backoff); backoff = Math.min(backoff * 2, 30000);
+    setTimeout(() => { if (g === wsGen) connect(); }, backoff); backoff = Math.min(backoff * 2, 30000);
   };
+  ws.onclose = onclose; wsBk.onclose = onclose;
   ws.onerror = () => { try { ws.close(); } catch (e) {} };
+  wsBk.onerror = () => { try { wsBk.close(); } catch (e) {} };
 }
 function ingest(d) {
   pushTrade(d.a, d.T, +d.p, +d.q, d.m ? 1 : 0); lastId = d.a;
@@ -455,7 +467,7 @@ function pruneSecs() {
   for (const k of secs.keys()) { if (k < lim) secs.delete(k); else break; }
 }
 async function start() {
-  wsGen++; try { if (ws) ws.close(); } catch (e) {}
+  wsGen++; try { if (ws) ws.close(); } catch (e) {} try { if (wsBk) wsBk.close(); } catch (e) {}
   n = 0; lastId = 0; pending = []; filling = true; candles = new Map(); keysCache = null; cols = []; signals = []; lastPrice = 0;
   $('#hSym').textContent = S.sym;
   loading = 'loading history…'; status(loading, '#f59e0b'); dirty = true;
@@ -492,7 +504,7 @@ async function start() {
     if (n) lastPrice = tP[n - 1];
     rebuildAll();
     loading = '';
-    status(ws && ws.readyState === 1 ? 'live' : 'connecting…', ws && ws.readyState === 1 ? '#22c55e' : '#f59e0b');
+    status(!wsDown() && ws.readyState === 1 ? 'live' : 'connecting…', !wsDown() && ws.readyState === 1 ? '#22c55e' : '#f59e0b');
   } catch (e) {
     loading = ''; status('history failed — live only', '#ef4444'); toast('Could not load history: ' + e.message);
     rebuildAll();
@@ -969,7 +981,7 @@ function beep(f) {
 window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  if (!ws || ws.readyState > 1) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
+  if (wsDown()) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
   dirty = true;
 });
 setInterval(sampleBook, 1000);
