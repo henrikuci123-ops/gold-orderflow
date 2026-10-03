@@ -835,10 +835,23 @@ function resize() {
   const r = cv.getBoundingClientRect(); DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); dirty = true;
-  if (!fpV.init && W > 0) { fpV.init = true; if (W < 520) { fpV.colW = 96; fpV.rowH = 16; } hmV.pps = hmPlotW() / ((W < 520 ? 15 : 30) * 60); }   // heatmap opens on 15 min (phone) / 30 min
+  if (!fpV.init && W > 0) {
+    fpV.init = true;
+    if (W < 520) { fpV.colW = 96; fpV.rowH = 16; }
+    hmV.pps = hmPlotW() / ((W < 520 ? 15 : 30) * 60);              // heatmap opens on 15 min (phone) / 30 min
+    const v = S.view && S.view[W < 520 ? 'phone' : 'wide'];          // ...unless you zoomed it yourself before
+    if (v) { for (const k of ['colW', 'rowH']) if (v.fp && v.fp[k] > 0) fpV[k] = v.fp[k]; for (const k of ['pps', 'dpp']) if (v.hm && v.hm[k] > 0) hmV[k] = v.hm[k]; }
+  }
 }
 const fpV = {colW: 116, rowH: 18, follow: true, center: 0, off: 0};
 const hmV = {pps: 2, dpp: 0.03, follow: true, center: 0, off: 0};
+// remember the zoom of both charts (candle width/height, heatmap time window/price scale) - phone and wide screens separately
+setInterval(() => {
+  if (!fpV.init) return;
+  const key = W < 520 ? 'phone' : 'wide', v = {fp: {colW: +fpV.colW.toFixed(2), rowH: +fpV.rowH.toFixed(2)}, hm: {pps: +hmV.pps.toFixed(4), dpp: +hmV.dpp.toFixed(5)}};
+  S.view = S.view || {};
+  if (JSON.stringify(S.view[key]) !== JSON.stringify(v)) { S.view[key] = v; saveS(); }
+}, 2000);
 const small = () => W < 520;
 
 function msg(t) { ctx.fillStyle = C.dim; ctx.font = '14px -apple-system,sans-serif'; ctx.textAlign = 'center'; ctx.fillText(t, W / 2, H / 2); ctx.textAlign = 'left'; }
@@ -1483,8 +1496,9 @@ function beep(f) {
 window.addEventListener('resize', resize);
 window.addEventListener('pageshow', e => { if (e.persisted) { syncing = false; histBusy = false; backoff = 1000; connect(); } });
 let hiddenAt = 0;
+window.addEventListener('pagehide', () => saveS());
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
+  if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); saveS(); return; }
   const away = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = 0;
   if (away > 10 * 60000 && !loading) { start(); return; }                 // long pause: reload everything
