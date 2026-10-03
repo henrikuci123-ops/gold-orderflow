@@ -66,6 +66,23 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+  write_if_changed /etc/systemd/system/gof-history.service <<EOF
+[Unit]
+Description=Gold order-flow trade history (Binance daily files + gaps) for the footprint
+After=network-online.target
+
+[Service]
+User=gof
+Environment=GOF_DATA=$DATA GOF_STATUS=$WWW
+ExecStart=/usr/bin/python3 -u $REPO/server/history.py
+Restart=always
+RestartSec=30
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
   write_if_changed /etc/systemd/system/gof-update.service <<EOF
 [Unit]
 Description=Pull gold-orderflow from GitHub and apply changes
@@ -116,10 +133,11 @@ EOF
   fi
 
   systemctl daemon-reload
-  systemctl enable --now gof-recorder.service gof-api.service gof-update.timer caddy >/dev/null 2>&1
+  systemctl enable --now gof-recorder.service gof-api.service gof-history.service gof-update.timer caddy >/dev/null 2>&1
   if [ "${CHANGED_CADDY:-0}" = 1 ]; then systemctl reload caddy || systemctl restart caddy; fi
   if [ "${CHANGED_SERVICE:-0}" = 1 ]; then systemctl restart gof-recorder.service; fi
   if [ "${CHANGED_API:-0}" = 1 ]; then systemctl restart gof-api.service; fi
+  if [ "${CHANGED_HIST:-0}" = 1 ]; then systemctl restart gof-history.service; fi
   echo "setup done $(date -u '+%F %T') version $(cat /opt/gof/version.txt 2>/dev/null) address https://$host/"
 }
 
@@ -135,6 +153,7 @@ write_if_changed() {
       */Caddyfile) CHANGED_CADDY=1 ;;
       */gof-recorder.service) CHANGED_SERVICE=1 ;;
       */gof-api.service) CHANGED_API=1 ;;
+      */gof-history.service) CHANGED_HIST=1 ;;
     esac
   fi
   rm -f "$tmp"

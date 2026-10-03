@@ -18,9 +18,13 @@ main() {
     systemctl restart gof-recorder.service
     echo "$(date -u '+%F %T') recorder restarted" >> "$LOG"
   fi
-  if echo "$changed" | grep -q '^server/api.py$'; then
+  if echo "$changed" | grep -Eq '^server/(api|fpcore).py$'; then
     systemctl restart gof-api.service
     echo "$(date -u '+%F %T') api restarted" >> "$LOG"
+  fi
+  if echo "$changed" | grep -Eq '^server/(history|fpcore).py$'; then
+    systemctl restart gof-history.service
+    echo "$(date -u '+%F %T') history restarted" >> "$LOG"
   fi
   return 0
 }
