@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 
 import fpcore as F
 
-DAYS = int(os.environ.get("GOF_HISTORY_DAYS", "30"))
+DAYS = int(os.environ.get("GOF_HISTORY_DAYS", "90"))
 API = "https://fapi.binance.com"
 ZIP_URL = "https://data.binance.vision/data/futures/um/daily/aggTrades/{s}/{s}-aggTrades-{d}.zip"
 STATUS_DIR = os.environ.get("GOF_STATUS") or F.BASE

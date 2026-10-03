@@ -183,7 +183,7 @@ def fp_candles(tf, step, frm, until, sess):
         raise ValueError("tf must divide 60 and step must be a multiple of $0.05")
     now_ms = int(time.time() * 1000)
     until = min(until, now_ms)
-    frm = max(frm, until - 32 * 86400000)
+    frm = max(frm, until - 95 * 86400000)
     tfm = tf * 60000
     frm -= frm % tfm
     out, prof, first, pfrom = [], {}, None, None
@@ -242,7 +242,7 @@ def fp_candles(tf, step, frm, until, sess):
 def warm_up():
     time.sleep(20)
     now = int(time.time() * 1000)
-    for tf, step, days in ((60, 0.5, 30), (60, 1, 30), (5, 0.5, 1), (15, 0.5, 3)):
+    for tf, step, days in ((60, 5, 90), (60, 2, 30), (60, 1, 10), (5, 0.5, 1), (15, 0.5, 3), (30, 0.5, 5)):
         try:
             with _fp_lock:
                 fp_candles(tf, step, now - days * 86400000, now, now)

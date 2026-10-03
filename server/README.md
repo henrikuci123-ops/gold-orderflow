@@ -6,7 +6,7 @@ Records Binance XAUUSDT trades and the order book 24/7 on a DigitalOcean droplet
 - `setup.sh` – installs everything; safe to re-run.
 - `update.sh` – runs every 5 min: pulls this repo from GitHub, re-runs setup, restarts the recorder / API when their file changed.
 - `api.py` – history API for the app (`/api/book?minutes=120`), behind Caddy at `/api/`.
-- `history.py` – keeps 30 days of every trade (Binance daily files + gaps) as minute 'atoms' for the footprint.
+- `history.py` – keeps 90 days of every trade (Binance daily files + gaps) as minute 'atoms' for the footprint.
 - `fpcore.py` – shared footprint code; `api.py` also serves `/api/fp` (footprint candles).
 - `status.html` – status page served at `https://<server-ip-with-dashes>.sslip.io/`.
 
