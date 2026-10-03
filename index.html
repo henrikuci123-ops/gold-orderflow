@@ -42,6 +42,7 @@ main{position:relative;flex:1;min-height:0}
 #tools button{background:none;border:0;color:var(--dim);font-size:13px;font-weight:600;padding:5px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
 #tools button.on{color:var(--acc);background:var(--sel)}
 #tools .sep{flex:1}
+#tools .grp{display:flex;gap:2px}
 #tools .st2{font-size:11px;color:var(--dim);white-space:nowrap;padding-right:4px}
 .zoom button.day{font-size:12px;font-weight:700;color:#fff;border:0;padding:0 10px;white-space:nowrap}
 .zoom button.day.up{background:var(--buy)}.zoom button.day.dn{background:var(--sell)}.zoom button.day.na{background:var(--dim)}
@@ -93,7 +94,7 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="tape">Tape</button>
   <button data-tab="srv">Server</button>
 </nav>
-<div id="tools"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button><span class="sep"></span><span class="st2" id="tStep"></span></div>
+<div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmc="0">Line</button><button data-hmc="15">15s</button><button data-hmc="30">30s</button><button data-hmc="60">1m</button><button data-hmc="300">5m</button><button data-hmc="900">15m</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
 <main>
   <canvas id="cv"></canvas>
   <div id="tape" class="hidden">
@@ -153,7 +154,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', stepTf: {}, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', stepTf: {}, hmc: 60, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -167,14 +168,14 @@ const THEMES = {
     panel: '#ffffff', side: '#f8f9fd', buyRGB: '8,153,129', sellRGB: '242,54,69',
     sellLo: [253, 228, 228], sellHi: [235, 77, 74], buyLo: [215, 243, 235], buyHi: [38, 166, 154], sellImb: '#c62828', buyImb: '#00796b', pocCell: '#9598a1',
     cellTxt: '#131722', boxBg: '#ffffff', boxLine: '#d1d4dc', sellTxt: '#f23645', buyTxt: '#089981',
-    wallLbl: 'rgba(255,255,255,.94)', price: '#131722', dotB: 'rgba(8,153,129,.65)', dotS: 'rgba(242,54,69,.65)',
+    hmEdge: 'rgba(19,23,34,.9)', wallLbl: 'rgba(255,255,255,.94)', price: '#131722', dotB: 'rgba(8,153,129,.65)', dotS: 'rgba(242,54,69,.65)',
     vaFill: 'rgba(41,98,255,0.04)', vaLine: 'rgba(41,98,255,.65)', pocLine: 'rgba(247,166,0,.9)',
     hm: [[0, [255, 255, 255]], [0.12, [225, 236, 255]], [0.35, [130, 175, 255]], [0.6, [35, 95, 220]], [0.82, [250, 160, 35]], [1, [205, 25, 35]]]},
   dark: {bg: '#0b0e14', grid: '#161c28', line: '#1f2635', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341',
     panel: '#10141d', side: '#0d1119', buyRGB: '38,166,154', sellRGB: '239,83,80',
     sellLo: [52, 26, 30], sellHi: [214, 76, 74], buyLo: [16, 44, 44], buyHi: [32, 150, 138], sellImb: '#c62828', buyImb: '#0f8a6c', pocCell: '#5d6675',
     cellTxt: '#f2f5f8', boxBg: '#161b22', boxLine: '#30363d', sellTxt: '#ff8a80', buyTxt: '#5ee6c0',
-    wallLbl: 'rgba(11,14,20,.88)', price: 'rgba(255,255,255,.9)', dotB: 'rgba(38,200,170,.75)', dotS: 'rgba(255,90,90,.75)',
+    hmEdge: 'rgba(255,255,255,.9)', wallLbl: 'rgba(11,14,20,.88)', price: 'rgba(255,255,255,.9)', dotB: 'rgba(38,200,170,.75)', dotS: 'rgba(255,90,90,.75)',
     vaFill: 'rgba(59,130,246,0.05)', vaLine: 'rgba(59,130,246,.75)', pocLine: 'rgba(250,204,21,.8)',
     hm: [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]]}
 };
@@ -314,8 +315,9 @@ function addTrade(i, cand = true) {       // cand = false: trade is already insi
   if (cand) addTradeCandle(T, p, q, m);
   const s = Math.floor(T / 1000);
   let o = secs.get(s);
-  if (!o) { o = {b: 0, s: 0, pb: 0, ps: 0, last: p}; secs.set(s, o); }
+  if (!o) { o = {b: 0, s: 0, pb: 0, ps: 0, last: p, o: p, h: p, l: p}; secs.set(s, o); }
   if (m) { o.s += q; o.ps += p * q; } else { o.b += q; o.pb += p * q; }
+  if (p > o.h) o.h = p; if (p < o.l) o.l = p;
   o.last = p;
   lastPrice = p;
 }
@@ -591,6 +593,7 @@ async function start() {
   loading = 'loading history…'; status(loading, '#f59e0b'); dirty = true;
   connect();
   startGen++; histBusy = false; loadBookHistory(HIST_MIN);
+  { const g0 = startGen; [25000, 70000].forEach(ms => setTimeout(() => { if (g0 === startGen) loadBookHistory(5); }, ms)); }
   try {
     const now = Date.now();
     sessStart = tiranaMidnight(now); nextSess = tiranaMidnight(sessStart + 30 * 3600000);
@@ -1045,7 +1048,7 @@ function drawHM() {
     const img = octx.createImageData(secsVis, nRows), D = img.data;
     for (let i = 0; i < D.length; i += 4) { D[i] = LUT[0]; D[i + 1] = LUT[1]; D[i + 2] = LUT[2]; D[i + 3] = 255; }
     for (let ci = 0; ci < vis.length; ci++) {
-      const c = vis[ci], xi = c.t - tStart, nxt = ci + 1 < vis.length ? Math.min(vis[ci + 1].t - tStart, xi + 3) : xi + 1;
+      const c = vis[ci], xi = c.t - tStart, nxt = ci + 1 < vis.length ? Math.min(vis[ci + 1].t - tStart, xi + 30) : xi + 1;   // short gaps: keep the last book
       for (let yi = 0; yi < nRows; yi++) {
         const v = c.vals[rTop - yi - c.base]; if (!(v > 0)) continue;
         const L = Math.min(255, Math.round(255 * Math.sqrt(Math.min(1, v / ref)))) * 3;
@@ -1062,10 +1065,30 @@ function drawHM() {
   { const ev = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800, xs = [];
     for (let t = Math.ceil(tStart / ev) * ev; t <= tEnd; t += ev) xs.push(xOf(t));
     ctx.save(); ctx.globalAlpha = S.theme === 'dark' ? 0.5 : 0.8; gridV(xs, 0, plotH); gridH(yOf, 0, x1, 0, plotH, hs / hmV.dpp, hs); ctx.restore(); }
-  ctx.strokeStyle = C.price; ctx.lineWidth = 1.4; ctx.beginPath();
-  let started = false;
-  for (let t = tStart; t <= tEnd; t++) { const o = secs.get(t); if (!o) continue; const x = xOf(t), y = yOf(o.last); if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); }
-  ctx.stroke(); ctx.lineWidth = 1;
+  let secsFrom = Infinity; for (const k of secs.keys()) { secsFrom = k; break; }       // own trades start here; older: 1-min candles
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
+  if (S.hmc > 0) {                                   // candles over the heatmap (like Bookmap / ATAS)
+    const tfs = S.hmc, w = tfs * hmV.pps, bw = Math.max(1, Math.min(w - 2, w * 0.62));
+    for (const c of hmCandles(tfs, tStart - tfs, tEnd, secsFrom)) {
+      const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
+      if (xL > x1 || xL + w < 0) continue;
+      const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1.5, Math.abs(yc - yo));
+      ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillRect(cx - bw / 2, top, bw, hg);
+      ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.strokeRect(cx - bw / 2 - 0.5, top - 0.5, bw + 1, hg + 1);
+    }
+  } else {                                           // price line
+    ctx.strokeStyle = C.price; ctx.lineWidth = 1.4; ctx.beginPath();
+    let started = false;
+    const pt = (x, y) => { if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); };
+    for (const K of klines) { const t = K[0] / 1000; if (t + 60 > secsFrom || t > tEnd) break; if (t + 60 < tStart) continue; pt(xOf(t + 59), yOf(K[4])); }
+    for (let t = Math.max(tStart, secsFrom === Infinity ? tEnd + 1 : secsFrom); t <= tEnd; t++) { const o = secs.get(t); if (o) pt(xOf(t), yOf(o.last)); }
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+  lastLine(yOf, x1, plotH);
+  ctx.restore();
   for (let t = tStart; t <= tEnd; t++) {
     const o = secs.get(t); if (!o) continue;
     const x = xOf(t);
@@ -1095,6 +1118,19 @@ function drawHM() {
   const every = [15, 30, 60, 120, 300, 600, 900].find(s => s * hmV.pps >= 70) || 1800;
   for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) ctx.fillText(tFmt.format(t * 1000), xOf(t), plotH + 13);
   ctx.textAlign = 'left';
+}
+// OHLC per tfs seconds: 1-minute candles before the app's own trades, per-second trades after
+function hmCandles(tfs, t0, t1, secsFrom) {
+  const items = [];
+  if (tfs >= 60) for (const K of klines) { const t = K[0] / 1000; if (t + 60 > secsFrom || t > t1) break; if (t + 60 < t0) continue; items.push([t, K[1], K[2], K[3], K[4]]); }
+  for (let t = Math.max(t0, secsFrom === Infinity ? t1 + 1 : secsFrom); t <= t1; t++) { const o = secs.get(t); if (o && o.o != null) items.push([t, o.o, o.h, o.l, o.last]); }
+  const out = []; let cur = null;
+  for (const [t, o, h, l, c] of items) {
+    const k = t - (t % tfs);
+    if (!cur || cur.t !== k) { cur = {t: k, o, h, l, c}; out.push(cur); }
+    else { if (h > cur.h) cur.h = h; if (l < cur.l) cur.l = l; cur.c = c; }
+  }
+  return out;
 }
 function dot(x, y, v, col) { const r = Math.min(22, 2.5 + 4 * Math.sqrt(v / S.big)); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.2832); ctx.fill(); }
 
@@ -1217,10 +1253,12 @@ function setTf(tf) {                  // quick timeframe bar
   fpV.off = 0; fpV.follow = true; renderTools(); reloadFP();
 }
 function renderTools() {
-  document.querySelectorAll('#tools button').forEach(b => b.classList.toggle('on', +b.dataset.tf === S.tf));
-  $('#tStep').textContent = `rows $${S.step}`;
+  document.querySelectorAll('#tfFp button').forEach(b => b.classList.toggle('on', +b.dataset.tf === S.tf));
+  document.querySelectorAll('#tfHm button').forEach(b => b.classList.toggle('on', +b.dataset.hmc === (S.hmc || 0)));
+  $('#tStep').textContent = `rows $${S.tab === 'hm' ? S.hstep : S.step}`;
 }
-document.querySelectorAll('#tools button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
+document.querySelectorAll('#tfFp button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
+document.querySelectorAll('#tfHm button').forEach(b => b.onclick = () => { S.hmc = +b.dataset.hmc; saveS(); renderTools(); dirty = true; });
 // up / down day - same rule as the bot: yesterday's daily close above / below its 20-day EMA (MT5 days, Mon-Fri)
 let dayT = null;
 async function loadDayTrend() {
@@ -1263,7 +1301,8 @@ function setTab(t) {
   S.tab = t; saveS();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   const panel = t === 'tape' || t === 'srv';
-  $('#tools').classList.toggle('hidden', t !== 'fp');
+  $('#tools').classList.toggle('hidden', t !== 'fp' && t !== 'hm');
+  $('#tfFp').classList.toggle('hidden', t !== 'fp'); $('#tfHm').classList.toggle('hidden', t !== 'hm'); renderTools();
   $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
