@@ -94,7 +94,8 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Imbalance<small>buyers vs sellers one row apart</small></label><select id="sImb"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Absorption strength<small>selling/buying at the low/high vs a normal row</small></label><select id="sAbs"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Big trade size<small>oz in one second (100 oz = 1 MT5 lot)</small></label><select id="sBig"><option value="10">10 oz</option><option value="25">25 oz</option><option value="50">50 oz</option><option value="100">100 oz</option><option value="250">250 oz</option></select></div>
-  <div class="row"><label>MT5 price offset<small>Binance price minus your MT5 price (0 = show Binance)</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
+  <div class="row"><label>Match my MT5 price<small>type your MT5 XAUUSD price right now — the app shows MT5 prices from then on. <span id="sNow"></span></small></label><input id="sMt5" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 4142.71"></div>
+  <div class="row"><label>MT5 price offset<small>Binance minus MT5 (set automatically by the box above, 0 = show Binance prices)</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
   <div class="row"><label>History to load<small>footprint detail for the last…</small></label><select id="sBack"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div>
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
@@ -103,7 +104,7 @@ input[type=checkbox]{width:22px;height:22px}
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
-    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD — use the offset. Drag to move, pinch or +/− to zoom, LIVE to follow.
+    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD — use the offset. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
 <script>
@@ -737,10 +738,24 @@ function frame(ts) {
 
 // ---------------------------------------------------------------- input: drag, pinch, wheel, buttons
 const ptrs = new Map(); let pinch0 = null;
-cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY}); unlockAudio(); if (ptrs.size === 2) pinch0 = pinchState(); });
+// where a finger lands: price axis (drag up/down = taller/shorter), time strip (drag left/right = wider/narrower), chart (move)
+function zoneOf(e) {
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if (x > W - 58) return 'y';
+  if (S.tab === 'fp' ? y > H - 76 : y > H - 18) return 'x';
+  return 'pan';
+}
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, {x: e.clientX, y: e.clientY, mode: zoneOf(e)}); unlockAudio(); if (ptrs.size === 2) pinch0 = pinchState(); });
+cv.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'grab'}[zoneOf(e)]; });
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId); if (!p) return;
-  if (ptrs.size === 1) {
+  if (e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'grab'}[zoneOf(e)];
+  if (ptrs.size === 1 && p.mode !== 'pan') {
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (p.mode === 'y') { const f = Math.exp(-dy / 120); if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
+    else { const f = Math.exp(dx / 150); if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 30, 300); else hmV.pps = clamp(hmV.pps * f, 0.25, 12); }
+    dirty = true;
+  } else if (ptrs.size === 1) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     if (S.tab === 'fp') { fpV.off = Math.max(0, fpV.off + dx / fpV.colW); fpV.center += dy / fpV.rowH * S.step; fpV.follow = false; }
     else { hmV.off = Math.max(0, hmV.off + dx / hmV.pps); hmV.center += dy * hmV.dpp; hmV.follow = false; }
@@ -768,7 +783,10 @@ cv.addEventListener('wheel', e => {
   else { if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 4, 40); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
   dirty = true;
 }, {passive: false});
-cv.addEventListener('dblclick', () => { fpV.follow = hmV.follow = true; dirty = true; });
+cv.addEventListener('dblclick', e => {
+  if (zoneOf(e) === 'y') { if (S.tab === 'fp') fpV.rowH = small() ? 15 : 17; else hmV.dpp = 0.03; }   // double-tap the price axis = normal height
+  fpV.follow = hmV.follow = true; dirty = true;
+});
 function zoom(f) {
   if (S.tab === 'fp') { fpV.rowH = clamp(fpV.rowH * f, 4, 40); fpV.colW = clamp(fpV.colW * f, 40, 260); }
   else { hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); hmV.pps = clamp(hmV.pps * f, 0.25, 12); }
@@ -788,14 +806,19 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(
 const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sBack: 'backfill'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
-  $('#sSnd').checked = !!S.sound; $('#sheet').classList.remove('hidden');
+  $('#sSnd').checked = !!S.sound; $('#sMt5').value = '';
+  $('#sNow').textContent = lastPrice ? `(Binance now ${lastPrice.toFixed(2)})` : '';
+  $('#sheet').classList.remove('hidden');
 };
 $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
   const old = Object.assign({}, S);
   for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = k === 'sym' ? v : (parseFloat(v) || 0); }
-  S.sound = $('#sSnd').checked; saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
+  S.sound = $('#sSnd').checked;
+  const mt5 = parseFloat($('#sMt5').value);
+  if (mt5 > 0 && lastPrice) S.offset = Math.round((lastPrice - mt5) * 100) / 100;
+  saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
   if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); return; }
   if (S.tf !== old.tf || S.step !== old.step || S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
   if (S.hstep !== old.hstep) cols = [];
@@ -827,7 +850,7 @@ setTab(S.tab || 'fp');
 resize();
 requestAnimationFrame(frame);
 start();
-window.GOF = {S, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals};
+window.GOF = {S, fpV, hmV, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals};
 })();
 </script>
 </body>
