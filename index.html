@@ -42,7 +42,8 @@ main{position:relative;flex:1;min-height:0}
 #tools button{background:none;border:0;color:var(--dim);font-size:13px;font-weight:600;padding:5px 9px;border-radius:6px;cursor:pointer;white-space:nowrap}
 #tools button.on{color:var(--acc);background:var(--sel)}
 #tools .sep{flex:1}
-#tools .grp{display:flex;gap:2px}
+#tools .grp{display:flex;gap:2px;align-items:center}
+#tools .vsep{width:1px;height:18px;background:var(--line);margin:0 4px}
 #hmPanel{position:absolute;top:6px;right:8px;z-index:5;width:290px;max-width:calc(100% - 16px);max-height:calc(100% - 12px);overflow:auto;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:0 8px 28px rgba(0,0,0,.35);font-size:13px}
 #hmPanel .ph{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 6px}
 #hmPanel .pr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0}
@@ -105,7 +106,7 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="tape">Tape</button>
   <button data-tab="srv">Server</button>
 </nav>
-<div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmc="0">Line</button><button data-hmc="15">15s</button><button data-hmc="30">30s</button><button data-hmc="60">1m</button><button data-hmc="300">5m</button><button data-hmc="900">15m</button><button id="hmStyleB">Style ▾</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
+<div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmm="line">Line</button><button data-hmm="candles">Candles</button><span class="vsep"></span><button data-span="5">5m</button><button data-span="15">15m</button><button data-span="30">30m</button><button data-span="60">1h</button><button data-span="120">2h</button><button id="hmStyleB">Style ▾</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
 <main>
   <canvas id="cv"></canvas>
   <div id="hmPanel" class="hidden">
@@ -179,7 +180,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', stepTf: {}, hmc: 60, hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -209,6 +210,7 @@ let C = THEMES.light;
 let S = Object.assign({}, DEF), saved0 = {};
 try { saved0 = JSON.parse(localStorage.getItem(LS) || '{}'); Object.assign(S, saved0); } catch (e) {}
 if ((saved0.setv || 0) < 2) { S.hmFloor = 2; S.setv = 2; }      // one-time: brighter heatmap default
+if (saved0.hmc !== undefined && saved0.hmm === undefined) S.hmm = saved0.hmc === 0 ? 'line' : 'candles';
 const saveS = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
 const $ = s => document.querySelector(s);
 
@@ -833,7 +835,7 @@ function resize() {
   const r = cv.getBoundingClientRect(); DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = r.width; H = r.height; cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); dirty = true;
-  if (!fpV.init && W > 0) { fpV.init = true; if (W < 520) { fpV.colW = 96; fpV.rowH = 16; hmV.pps = 1.5; } }
+  if (!fpV.init && W > 0) { fpV.init = true; if (W < 520) { fpV.colW = 96; fpV.rowH = 16; } hmV.pps = hmPlotW() / ((W < 520 ? 15 : 30) * 60); }   // heatmap opens on 15 min (phone) / 30 min
 }
 const fpV = {colW: 116, rowH: 18, follow: true, center: 0, off: 0};
 const hmV = {pps: 2, dpp: 0.03, follow: true, center: 0, off: 0};
@@ -1077,6 +1079,8 @@ function applyTheme() {
   dirty = true;
 }
 const off = document.createElement('canvas'), octx = off.getContext('2d');
+function hmLayout() { const sm = small(); return {AX: 58, BW: S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW: S.svp ? (sm ? 40 : 84) : 0}; }
+function hmPlotW() { const l = hmLayout(); return Math.max(50, W - l.AX - l.BW - l.SW); }
 function drawHM() {                       // drawn with the heatmap's own (dark/light) colours
   const pal = HMPAL[hmPal()], saved = C;
   C = pal.dark ? THEMES.dark : THEMES.light;
@@ -1085,7 +1089,7 @@ function drawHM() {                       // drawn with the heatmap's own (dark/
 function drawHM2(LUTh) {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   if (!cols.length) { msg(loading || 'Building the order book…'); return; }
-  const sm = small(), AX = 58, BW = S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW = S.svp ? (sm ? 40 : 84) : 0, TB = 18, VB = S.vbars ? (sm ? 34 : 50) : 0;
+  const {AX, BW, SW} = hmLayout(), TB = 18, VB = S.vbars ? (small() ? 34 : 50) : 0;
   const x1 = W - AX - BW - SW, plotH = H - TB, midY = plotH / 2;
   const lastCol = cols[cols.length - 1], nowSec = Math.max(lastCol.t, Math.floor(Date.now() / 1000) - 1), stale = nowSec - lastCol.t > 15;
   if (hmV.follow) { hmV.off = 0; hmV.center = lastPrice || (lastCol.bb + lastCol.ba) / 2; }
@@ -1146,17 +1150,17 @@ function drawHM2(LUTh) {
     const w = Math.max(1, B * hmV.pps - 1);
     for (const k of bk) { const h = Math.max(1, VB * (k.b + k.s) / mx); ctx.fillStyle = `rgba(${k.b >= k.s ? C.buyRGB : C.sellRGB},.8)`; ctx.fillRect(bx(k) - w / 2, plotH - h, w, h); }
   }
-  // candles or price line
-  if (S.hmc > 0) {
-    const tfs = S.hmc, w = tfs * hmV.pps, bw = Math.max(1, Math.min(w - 2, w * 0.62));
+  // candles (Bookmap-style: always a few pixels wide; how many seconds each covers follows the zoom) or price line
+  if (S.hmm !== 'line') {
+    const tfs = [1, 2, 3, 5, 10, 15, 20, 30, 60, 120, 180, 300, 600, 900, 1800].find(v => v * hmV.pps >= 6) || 3600;
+    const w = tfs * hmV.pps, bw = Math.max(1, Math.round(w * 0.6));
     for (const c of hmCandles(tfs, tStart - tfs, tEnd, psFrom)) {
       const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
       if (xL > x1 || xL + w < 0) continue;
-      const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1.5, Math.abs(yc - yo));
-      ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
-      ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
-      ctx.fillStyle = col; ctx.fillRect(cx - bw / 2, top, bw, hg);
-      ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.strokeRect(cx - bw / 2 - 0.5, top - 0.5, bw + 1, hg + 1);
+      const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1, Math.abs(yc - yo));
+      ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillRect(Math.round(cx - bw / 2), top, bw, hg);
+      if (bw >= 4) { ctx.strokeStyle = C.hmEdge; ctx.strokeRect(Math.round(cx - bw / 2) - 0.5, top - 0.5, bw + 1, hg + 1); }
     }
   }
   // volume bubbles: size = traded volume, green = mostly buying, red = mostly selling
@@ -1176,7 +1180,7 @@ function drawHM2(LUTh) {
     }
     ctx.textAlign = 'left';
   }
-  if (S.hmc === 0) {
+  if (S.hmm === 'line') {
     ctx.strokeStyle = C.price; ctx.lineWidth = 1.4; ctx.beginPath();
     let started = false;
     const pt = (x, y) => { if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y); };
@@ -1289,8 +1293,10 @@ function renderHeader() {
 
 // ---------------------------------------------------------------- loop
 let lastDraw = 0, lastHead = 0;
+let spanT = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
+  if (S.tab === 'hm' && ts - spanT > 700) { spanT = ts; renderTools(); }
   if (ts - lastHead > 500) { lastHead = ts; renderHeader(); }
   if (S.tab === 'tape') { if (ts - tapeT > 1000) { tapeT = ts; renderTape(); } return; }
   if (S.tab === 'srv') return;
@@ -1316,7 +1322,7 @@ cv.addEventListener('pointermove', e => {
   if (ptrs.size === 1 && p.mode !== 'pan') {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     if (p.mode === 'y') { const f = Math.exp(-dy / 120); if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
-    else { const f = Math.exp(dx / 150); if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 30, 300); else hmV.pps = clamp(hmV.pps * f, 0.25, 12); }
+    else { const f = Math.exp(dx / 150); if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 30, 300); else hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
     dirty = true;
   } else if (ptrs.size === 1) {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
@@ -1328,7 +1334,7 @@ cv.addEventListener('pointermove', e => {
   if (ptrs.size === 2 && pinch0) {
     const ps = pinchState(), sx = ps.dx / pinch0.dx, sy = ps.dy / pinch0.dy;
     if (S.tab === 'fp') { fpV.colW = clamp(pinch0.colW * sx, 40, 260); fpV.rowH = clamp(pinch0.rowH * sy, 4, 40); }
-    else { hmV.pps = clamp(pinch0.pps * sx, 0.25, 12); hmV.dpp = clamp(pinch0.dpp / sy, 0.002, 1); }
+    else { hmV.pps = clamp(pinch0.pps * sx, 0.05, 12); hmV.dpp = clamp(pinch0.dpp / sy, 0.002, 1); }
     dirty = true;
   }
 });
@@ -1342,7 +1348,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 cv.addEventListener('wheel', e => {
   e.preventDefault();
   const f = e.deltaY > 0 ? 1 / 1.12 : 1.12;
-  if (e.shiftKey) { if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 40, 260); else hmV.pps = clamp(hmV.pps * f, 0.25, 12); }
+  if (e.shiftKey) { if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 40, 260); else hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
   else { if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 4, 40); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
   dirty = true;
 }, {passive: false});
@@ -1352,7 +1358,7 @@ cv.addEventListener('dblclick', e => {
 });
 function zoom(f) {
   if (S.tab === 'fp') { fpV.rowH = clamp(fpV.rowH * f, 4, 40); fpV.colW = clamp(fpV.colW * f, 40, 260); }
-  else { hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); hmV.pps = clamp(hmV.pps * f, 0.25, 12); }
+  else { hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
   dirty = true;
 }
 $('#zIn').onclick = () => zoom(1.2); $('#zOut').onclick = () => zoom(1 / 1.2);
@@ -1380,11 +1386,14 @@ function setTf(tf) {                  // quick timeframe bar
 }
 function renderTools() {
   document.querySelectorAll('#tfFp button').forEach(b => b.classList.toggle('on', +b.dataset.tf === S.tf));
-  document.querySelectorAll('#tfHm button[data-hmc]').forEach(b => b.classList.toggle('on', +b.dataset.hmc === (S.hmc || 0)));
+  document.querySelectorAll('#tfHm button[data-hmm]').forEach(b => b.classList.toggle('on', b.dataset.hmm === (S.hmm || 'candles')));
+  const span = hmPlotW() / hmV.pps / 60;
+  document.querySelectorAll('#tfHm button[data-span]').forEach(b => b.classList.toggle('on', Math.abs(span / +b.dataset.span - 1) < 0.12));
   $('#tStep').textContent = `rows $${S.tab === 'hm' ? S.hstep : S.step}`;
 }
 document.querySelectorAll('#tfFp button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
-document.querySelectorAll('#tfHm button[data-hmc]').forEach(b => b.onclick = () => { S.hmc = +b.dataset.hmc; saveS(); renderTools(); dirty = true; });
+document.querySelectorAll('#tfHm button[data-hmm]').forEach(b => b.onclick = () => { S.hmm = b.dataset.hmm; saveS(); renderTools(); dirty = true; });
+document.querySelectorAll('#tfHm button[data-span]').forEach(b => b.onclick = () => { hmV.pps = clamp(hmPlotW() / (+b.dataset.span * 60), 0.05, 12); hmV.follow = true; renderTools(); dirty = true; });
 // up / down day - same rule as the bot: yesterday's daily close above / below its 20-day EMA (MT5 days, Mon-Fri)
 let dayT = null;
 async function loadDayTrend() {
