@@ -1,6 +1,6 @@
 #!/bin/bash
 # Runs every 5 minutes (gof-update.timer). If GitHub has new commits: take them, re-run setup.sh, and restart the
-# recorder when anything in server/ changed. App-only changes (index.html etc.) do not touch the recorder.
+# recorder / API only when their own file changed. App-only changes (index.html etc.) touch neither.
 # Everything is inside main() so bash has read the whole script before git replaces this file.
 main() {
   local REPO=/opt/gof/repo LOG=/opt/gof/www/updates.log old new
@@ -12,9 +12,15 @@ main() {
   git reset -q --hard "$new" || return 1
   echo "$(date -u '+%F %T') update ${old:0:7} -> ${new:0:7}: $(git log -1 --format=%s "$new")" >> "$LOG"
   bash "$REPO/server/setup.sh" >> /opt/gof/www/setup.log 2>&1
-  if [ -n "$(git diff --name-only "$old" "$new" -- server/)" ]; then
+  local changed
+  changed=$(git diff --name-only "$old" "$new" -- server/)
+  if echo "$changed" | grep -q '^server/recorder.py$'; then
     systemctl restart gof-recorder.service
     echo "$(date -u '+%F %T') recorder restarted" >> "$LOG"
+  fi
+  if echo "$changed" | grep -q '^server/api.py$'; then
+    systemctl restart gof-api.service
+    echo "$(date -u '+%F %T') api restarted" >> "$LOG"
   fi
   return 0
 }

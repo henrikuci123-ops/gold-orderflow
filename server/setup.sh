@@ -50,6 +50,22 @@ Nice=5
 WantedBy=multi-user.target
 EOF
 
+  write_if_changed /etc/systemd/system/gof-api.service <<EOF
+[Unit]
+Description=Gold order-flow history API for the app (/api/ behind Caddy)
+After=network-online.target
+
+[Service]
+User=gof
+Environment=GOF_DATA=$DATA
+ExecStart=/usr/bin/python3 -u $REPO/server/api.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
   write_if_changed /etc/systemd/system/gof-update.service <<EOF
 [Unit]
 Description=Pull gold-orderflow from GitHub and apply changes
@@ -80,10 +96,16 @@ EOF
   echo "https://$host/" > "$WWW/address.txt"
   write_if_changed /etc/caddy/Caddyfile <<EOF
 $host {
-	root * $WWW
-	header Access-Control-Allow-Origin *
-	header Cache-Control no-cache
-	file_server browse
+	encode gzip
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8081
+	}
+	handle {
+		root * $WWW
+		header Access-Control-Allow-Origin *
+		header Cache-Control no-cache
+		file_server browse
+	}
 }
 EOF
 
@@ -94,9 +116,10 @@ EOF
   fi
 
   systemctl daemon-reload
-  systemctl enable --now gof-recorder.service gof-update.timer caddy >/dev/null 2>&1
+  systemctl enable --now gof-recorder.service gof-api.service gof-update.timer caddy >/dev/null 2>&1
   if [ "${CHANGED_CADDY:-0}" = 1 ]; then systemctl reload caddy || systemctl restart caddy; fi
   if [ "${CHANGED_SERVICE:-0}" = 1 ]; then systemctl restart gof-recorder.service; fi
+  if [ "${CHANGED_API:-0}" = 1 ]; then systemctl restart gof-api.service; fi
   echo "setup done $(date -u '+%F %T') version $(cat /opt/gof/version.txt 2>/dev/null) address https://$host/"
 }
 
@@ -111,6 +134,7 @@ write_if_changed() {
     case "$1" in
       */Caddyfile) CHANGED_CADDY=1 ;;
       */gof-recorder.service) CHANGED_SERVICE=1 ;;
+      */gof-api.service) CHANGED_API=1 ;;
     esac
   fi
   rm -f "$tmp"

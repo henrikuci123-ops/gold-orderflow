@@ -4,7 +4,8 @@ Records Binance XAUUSDT trades and the order book 24/7 on a DigitalOcean droplet
 
 - `recorder.py` – the recorder (same file also runs on a PC).
 - `setup.sh` – installs everything; safe to re-run.
-- `update.sh` – runs every 5 min: pulls this repo from GitHub, re-runs setup, restarts the recorder if `server/` changed.
+- `update.sh` – runs every 5 min: pulls this repo from GitHub, re-runs setup, restarts the recorder / API when their file changed.
+- `api.py` – history API for the app (`/api/book?minutes=120`), behind Caddy at `/api/`.
 - `status.html` – status page served at `https://<server-ip-with-dashes>.sslip.io/`.
 
 ## Create the server (DigitalOcean → Create Droplet)
