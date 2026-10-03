@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gold recorder status</title>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--tx:#e6edf3;--mu:#8b949e;--ok:#3fb950;--bad:#f85149;--warn:#d29922}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;padding:16px}
+h1{font-size:20px;margin:0 0 12px}.card{background:var(--card);border-radius:10px;padding:14px;margin-bottom:12px}
+.big{font-size:22px;font-weight:700}.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+table{width:100%;border-collapse:collapse}td{padding:4px 0;border-bottom:1px solid #222}td:first-child{color:var(--mu)}
+pre{white-space:pre-wrap;font-size:12px;color:var(--mu);margin:0}a{color:#58a6ff}
+</style></head><body>
+<h1>Gold order-flow recorder</h1>
+<div class="card"><div id="state" class="big">Loading…</div><div id="sub" style="color:var(--mu)"></div></div>
+<div class="card"><table id="t"></table></div>
+<div class="card"><b>Recent log</b><pre id="log"></pre></div>
+<div class="card"><a href="data/">Recorded data</a> · <a href="updates.log">Updates</a> · <a href="status.json">status.json</a></div>
+<script>
+async function load(){
+  try{
+    const s=await (await fetch('status.json?'+Date.now())).json();
+    const age=(Date.now()-Date.parse(s.updated_utc.replace(' ','T')+'Z'))/1000;
+    const tAge=s.last_trade_age_sec;
+    let cls='ok',txt='Recording';
+    if(age>120){cls='bad';txt='Recorder not responding';}
+    else if(!s.connected_to_binance){cls='bad';txt='Not connected to Binance';}
+    else if(s.book!=='live'){cls='warn';txt='Recording (order book syncing)';}
+    else if(tAge!=null&&tAge>900){cls='warn';txt='Connected — market quiet / closed';}
+    document.getElementById('state').className='big '+cls;
+    document.getElementById('state').textContent=txt;
+    document.getElementById('sub').textContent='Updated '+Math.round(age)+' s ago · version '+(s.version||'?');
+    const rows=[['Last price',s.last_price],['Last trade (UTC)',s.last_trade_utc],['Trades last 5 min',s.trades_last_5min],
+      ['Order book',s.book+' ('+s.book_levels.join(' / ')+' levels)'],['Best bid / ask',s.best_bid_ask?s.best_bid_ask.join(' / '):'-'],
+      ['Downloading missed trades',s.backfill],['Running for',(s.running_for_min/60).toFixed(1)+' h'],
+      ['Disk free',s.disk_free_gb+' GB ('+s.disk_used_pct+'% used)']];
+    document.getElementById('t').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+(r[1]??'-')+'</td></tr>').join('');
+    document.getElementById('log').textContent=(s.log||[]).slice().reverse().join('\n');
+  }catch(e){document.getElementById('state').className='big bad';document.getElementById('state').textContent='No status yet';}
+}
+load();setInterval(load,15000);
+</script></body></html>
