@@ -35,7 +35,7 @@ main{position:relative;flex:1;min-height:0}
 .zoom{position:absolute;left:8px;top:8px;display:flex;gap:6px;z-index:2}
 .zoom button{background:rgba(18,23,34,.92);border:1px solid var(--line);color:var(--txt);border-radius:8px;min-width:38px;height:34px;font-size:16px;cursor:pointer}
 .zoom button.live{font-size:12px;font-weight:700;color:var(--acc)}
-#tape{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+#tape,#srv{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
 .hidden{display:none!important}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
 .card h3{margin:0 0 8px;font-size:13px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -47,6 +47,9 @@ td,th{padding:5px 4px;border-bottom:1px solid var(--line);text-align:right}
 th{color:var(--dim);font-weight:600;font-size:11px}
 td:first-child,th:first-child{text-align:left}
 .b{color:var(--buy)}.s{color:var(--sell)}.d{color:var(--dim)}
+.bigst{font-size:20px;font-weight:700;margin-bottom:6px}.ok{color:#22c55e}.bad{color:#ef4444}.warn{color:#f59e0b}
+#srvLog{white-space:pre-wrap;font-size:11px;color:var(--dim);margin:0;font-family:ui-monospace,Menlo,monospace}
+#srv a{color:#58a6ff}
 .sig{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
 #toast{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translateX(-50%);background:#1d2433;border:1px solid var(--acc);color:var(--txt);padding:10px 14px;border-radius:10px;font-size:13px;z-index:20;max-width:92vw;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;display:flex;align-items:flex-end;justify-content:center}
@@ -74,6 +77,7 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="fp">Footprint</button>
   <button data-tab="hm">Heatmap</button>
   <button data-tab="tape">Tape</button>
+  <button data-tab="srv">Server</button>
 </nav>
 <main>
   <canvas id="cv"></canvas>
@@ -82,6 +86,12 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="card"><h3>Order walls now</h3><div id="wallList"><div class="d">Building the order book — walls appear after about a minute.</div></div></div>
     <div class="card"><h3>Signals</h3><div id="sigs"><div class="d">No signals yet — they appear when a candle closes.</div></div></div>
     <div class="card"><h3>Big trades</h3><table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Lots</th><th>Oz</th></tr></thead><tbody id="big"></tbody></table></div>
+  </div>
+  <div id="srv" class="hidden">
+    <div class="card"><h3>Recorder server (24/7)</h3><div id="srvState" class="bigst d">Checking…</div><div id="srvSub" class="d" style="font-size:12px"></div><table><tbody id="srvT"></tbody></table></div>
+    <div class="card"><h3>Order-book history in this app</h3><div id="srvHist" class="d">—</div></div>
+    <div class="card"><h3>Server log</h3><pre id="srvLog"></pre></div>
+    <div class="card d">The server records Binance gold trades and the order book every 2 seconds, day and night, so the heatmap and walls are already filled in when you open the app. <a id="srvLink" target="_blank" rel="noopener">Status page</a> · <a id="srvData" target="_blank" rel="noopener">Recorded files</a></div>
   </div>
   <div class="zoom" id="zoom"><button id="zOut" aria-label="Zoom out">−</button><button id="zIn" aria-label="Zoom in">+</button><button id="zLive" class="live">LIVE</button></div>
 </main>
@@ -113,7 +123,7 @@ input[type=checkbox]{width:22px;height:22px}
     <b>Footprint:</b> each candle split into price rows, <b>sellers x buyers</b> — left number = market sells (hit the bid), right = market buys (lifted the ask), in MT5 lots (or ounces — Settings). Green row = more buying, red = more selling. <b>Bold green/red numbers</b> = imbalance (one side 3x the other, diagonally). Yellow box = busiest price of the candle. Under each candle: <b>Δ</b> buys − sells, volume, and the day's cumulative delta (CVD).<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
-    <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. They only build while the app is open.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
+    <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
     Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
@@ -129,7 +139,9 @@ const LS = 'gof.settings.v1';
 const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
-const MAXCOLS = 3600;        // heatmap history: 1 hour of 1-second columns
+const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
+const SERVER = 'https://178-128-194-91.sslip.io';   // our 24/7 recorder (DigitalOcean, Frankfurt)
+const HIST_MIN = 120;       // minutes of recorded order book loaded from the server when the app opens
 const MAXCALLS = 60;         // max REST calls for the trade history
 const C = {bg: '#0b0e14', grid: '#161c28', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341'};
 
@@ -472,6 +484,7 @@ async function start() {
   $('#hSym').textContent = S.sym;
   loading = 'loading history…'; status(loading, '#f59e0b'); dirty = true;
   connect();
+  startGen++; histBusy = false; loadBookHistory(HIST_MIN);
   try {
     const now = Date.now();
     sessStart = tiranaMidnight(now); nextSess = tiranaMidnight(sessStart + 30 * 3600000);
@@ -515,6 +528,86 @@ async function start() {
   dirty = true;
 }
 
+
+// ---------------------------------------------------------------- server: recorded order-book history + status
+let startGen = 0, srvHist = {state: 'not loaded'}, srvStat = null, histBusy = false;
+function mergeCols(hist) {        // put recorded columns only where the app has no live columns (before it opened / while in background)
+  if (!hist.length) return 0;
+  const gaps = [];
+  if (!cols.length) gaps.push([-Infinity, Infinity]);
+  else {
+    gaps.push([-Infinity, cols[0].t]);
+    for (let i = 1; i < cols.length; i++) if (cols[i].t - cols[i - 1].t > 5) gaps.push([cols[i - 1].t, cols[i].t]);
+    gaps.push([cols[cols.length - 1].t, Infinity]);
+  }
+  const nowS = Date.now() / 1000;
+  const add = hist.filter(c => c.t < nowS - 1 && gaps.some(([a, b]) => c.t > a + 1 && c.t < b - 1));
+  if (!add.length) return 0;
+  cols = cols.concat(add).sort((x, y) => x.t - y.t);
+  if (cols.length > MAXCOLS) cols.splice(0, cols.length - MAXCOLS);
+  return add.length;
+}
+async function loadBookHistory(minutes) {
+  if (S.sym !== 'XAUUSDT') { srvHist = {state: 'the server records XAUUSDT only'}; return; }
+  const hs = S.hstep, k = Math.round(hs / 0.25);
+  if (k < 1 || Math.abs(k * 0.25 - hs) > 1e-9) { srvHist = {state: 'heatmap row size $0.10 is finer than the recording ($0.25) — no history'}; return; }
+  if (histBusy) return; histBusy = true;
+  const sg = startGen, t0 = Date.now();
+  srvHist = {state: 'loading…'}; renderSrv();
+  try {
+    const r = await fetch(`${SERVER}/api/book?minutes=${Math.round(minutes)}`, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (sg !== startGen || S.hstep !== hs) return;
+    const st = d.step || 0.25, hist = [];
+    for (const c of d.cols) {
+      const r0 = c[1], nq = c.length - 4; if (nq <= 0) continue;
+      const base = Math.floor(r0 * st / hs + 1e-7), top = Math.floor((r0 + nq - 1) * st / hs + 1e-7);
+      const vals = new Float32Array(top - base + 1);
+      for (let i = 0; i < nq; i++) { const v = c[4 + i]; if (v) vals[Math.floor((r0 + i) * st / hs + 1e-7) - base] += v; }
+      hist.push({t: c[0], base, vals, bb: c[2], ba: c[3], hs, rec: true});
+    }
+    const added = mergeCols(hist);
+    srvHist = {state: 'ok', added, got: hist.length, from: hist.length ? hist[0].t : 0, to: hist.length ? hist[hist.length - 1].t : 0, ms: Date.now() - t0, at: Date.now()};
+    if (added) { calcWalls(); dirty = true; }
+  } catch (e) {
+    srvHist = {state: 'could not load (' + e.message + ') — live book only'};
+  } finally { histBusy = false; renderSrv(); }
+}
+async function loadSrvStatus() {
+  try {
+    const r = await fetch(`${SERVER}/status.json?${Date.now()}`, {cache: 'no-store'});
+    srvStat = await r.json(); srvStat._at = Date.now();
+  } catch (e) { srvStat = {_err: e.message, _at: Date.now()}; }
+  renderSrv();
+}
+function renderSrv() {
+  if (S.tab !== 'srv') return;
+  $('#srvLink').href = SERVER + '/'; $('#srvData').href = SERVER + '/data/' + S.sym + '/';
+  const s = srvStat, st = $('#srvState');
+  if (!s) { st.textContent = 'Checking…'; st.className = 'bigst d'; }
+  else if (s._err) { st.textContent = 'Server not reachable'; st.className = 'bigst bad'; $('#srvSub').textContent = s._err; }
+  else {
+    const age = (Date.now() - Date.parse(s.updated_utc.replace(' ', 'T') + 'Z')) / 1000;
+    let cls = 'ok', txt = 'Recording';
+    if (age > 120) { cls = 'bad'; txt = 'Recorder not responding'; }
+    else if (!s.connected_to_binance) { cls = 'bad'; txt = 'Not connected to Binance'; }
+    else if (s.book !== 'live') { cls = 'warn'; txt = 'Recording (order book syncing)'; }
+    else if (s.last_trade_age_sec != null && s.last_trade_age_sec > 900) { cls = 'warn'; txt = 'Connected — market quiet / closed'; }
+    st.textContent = txt; st.className = 'bigst ' + cls;
+    $('#srvSub').textContent = `updated ${Math.round(age)} s ago · version ${s.version || '?'}`;
+    const lp = +s.last_price;
+    const rows = [['Last price', lp ? fmtP(lp) + (curOff() ? ' (MT5)' : '') : '—'], ['Last trade', s.last_trade_utc ? tFmtS.format(Date.parse(s.last_trade_utc.replace(' ', 'T') + 'Z')) : '—'],
+      ['Trades last 5 min', s.trades_last_5min ?? '—'], ['Order book', `${s.book} (${(s.book_levels || []).join(' / ')} levels)`],
+      ['Missed trades download', s.backfill], ['Running for', (s.running_for_min / 60).toFixed(1) + ' h'], ['Disk free', `${s.disk_free_gb} GB (${s.disk_used_pct}% used)`]];
+    $('#srvT').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+    $('#srvLog').textContent = (s.log || []).slice().reverse().join('\n');
+  }
+  const h = srvHist;
+  $('#srvHist').innerHTML = h.state !== 'ok' ? h.state :
+    `Loaded ${h.got} recorded snapshots (${tFmt.format(h.from * 1000)}–${tFmt.format(h.to * 1000)}) in ${(h.ms / 1000).toFixed(1)} s; ` +
+    `${h.added} filled gaps in the heatmap. Last loaded ${tFmtS.format(h.at)}.`;
+}
 
 // ---------------------------------------------------------------- order walls (big waiting orders that stay)
 let walls = [], wallAlerted = new Map();
@@ -872,6 +965,7 @@ function frame(ts) {
   requestAnimationFrame(frame);
   if (ts - lastHead > 500) { lastHead = ts; renderHeader(); }
   if (S.tab === 'tape') { if (ts - tapeT > 1000) { tapeT = ts; renderTape(); } return; }
+  if (S.tab === 'srv') return;
   if (!dirty || ts - lastDraw < 200) return;
   lastDraw = ts; dirty = false;
   try { if (S.tab === 'fp') drawFP(); else drawHM(); } catch (e) { console.error(e); }
@@ -940,8 +1034,9 @@ $('#zLive').onclick = () => { fpV.follow = hmV.follow = true; dirty = true; };
 function setTab(t) {
   S.tab = t; saveS();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  $('#tape').classList.toggle('hidden', t !== 'tape'); $('#zoom').classList.toggle('hidden', t === 'tape'); cv.classList.toggle('hidden', t === 'tape');
-  if (t === 'tape') renderTape(); else { resize(); dirty = true; }
+  const panel = t === 'tape' || t === 'srv';
+  $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
+  if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
 const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
@@ -963,7 +1058,7 @@ $('#sOk').onclick = () => {
   saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
   if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); return; }
   if (S.tf !== old.tf || S.step !== old.step || S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
-  if (S.hstep !== old.hstep) cols = [];
+  if (S.hstep !== old.hstep) { cols = []; histBusy = false; startGen++; loadBookHistory(HIST_MIN); }
   dirty = true; renderTape();
 };
 let toastT = 0;
@@ -982,19 +1077,23 @@ window.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   if (wsDown()) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
+  const gapS = cols.length ? Date.now() / 1000 - cols[cols.length - 1].t : HIST_MIN * 60;
+  if (gapS > 10) loadBookHistory(Math.min(HIST_MIN, Math.ceil(gapS / 60) + 2));
+  if (S.tab === 'srv') loadSrvStatus();
   dirty = true;
 });
 setInterval(sampleBook, 1000);
 setInterval(pruneSecs, 60000);
 setInterval(pollIndex, 10000);
 setTimeout(pollIndex, 1500);
-setInterval(() => { if (lastPrice && S.tab !== 'tape') dirty = true; }, 1000);
+setInterval(() => { if (lastPrice && S.tab !== 'tape' && S.tab !== 'srv') dirty = true; }, 1000);
+setInterval(() => { if (S.tab === 'srv' && document.visibilityState === 'visible') loadSrvStatus(); }, 15000);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-setTab(S.tab || 'fp');
+setTab(['fp', 'hm', 'tape', 'srv'].includes(S.tab) ? S.tab : 'fp');
 resize();
 requestAnimationFrame(frame);
 start();
-window.GOF = {S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals};
+window.GOF = {S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals, srvHist: () => srvHist, srvStat: () => srvStat, walls: () => walls, loadBookHistory};
 })();
 </script>
 </body>
