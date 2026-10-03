@@ -89,6 +89,7 @@ input[type=checkbox]{width:22px;height:22px}
   </div>
   <div id="srv" class="hidden">
     <div class="card"><h3>Recorder server (24/7)</h3><div id="srvState" class="bigst d">Checking…</div><div id="srvSub" class="d" style="font-size:12px"></div><table><tbody id="srvT"></tbody></table></div>
+    <div class="card"><h3>Footprint history</h3><div id="srvFp" class="d">—</div></div>
     <div class="card"><h3>Order-book history in this app</h3><div id="srvHist" class="d">—</div></div>
     <div class="card"><h3>Server log</h3><pre id="srvLog"></pre></div>
     <div class="card d">The server records Binance gold trades and the order book every 2 seconds, day and night, so the heatmap and walls are already filled in when you open the app. <a id="srvLink" target="_blank" rel="noopener">Status page</a> · <a id="srvData" target="_blank" rel="noopener">Recorded files</a></div>
@@ -100,8 +101,8 @@ input[type=checkbox]{width:22px;height:22px}
   <h2>Settings</h2>
   <div class="row"><label>Market<small>Binance perpetual futures</small></label><select id="sSym"><option value="XAUUSDT">XAUUSDT (gold)</option><option value="XAUTUSDT">XAUTUSDT (Tether gold)</option><option value="PAXGUSDT">PAXGUSDT (Pax gold)</option><option value="XAGUSDT">XAGUSDT (silver)</option></select></div>
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
-  <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option></select></div>
-  <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option></select></div>
+  <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option></select></div>
+  <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option><option value="10">$10</option></select></div>
   <div class="row"><label>Heatmap row size</label><select id="sHstep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option></select></div>
   <div class="row"><label>Imbalance<small>buyers vs sellers one row apart</small></label><select id="sImb"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Absorption strength<small>selling/buying at the low/high vs a normal row</small></label><select id="sAbs"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
@@ -110,7 +111,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Fine-tune (automatic mode)<small>if your MT5 still differs a little, e.g. 0.20 = show prices 20 cents lower</small></label><input id="sAdj" type="number" step="0.01" inputmode="decimal"></div>
   <div class="row"><label>Match my MT5 price (manual)<small>type your MT5 XAUUSD price right now — switches to "my own offset". <span id="sNow"></span></small></label><input id="sMt5" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 4142.71"></div>
   <div class="row"><label>My own offset<small>Binance minus MT5, used in "my own offset" mode</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
-  <div class="row"><label>History to load<small>footprint detail for the last…</small></label><select id="sBack"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div>
+  <div class="row"><label>Trade history if the server is down<small>normally the server sends the full footprint history</small></label><select id="sBack"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div>
   <div class="row"><label>Order walls<small>zones where big buy/sell orders are waiting</small></label><select id="sWalls"><option value="1">Show</option><option value="0">Hide</option></select></div>
   <div class="row"><label>Wall size<small>how much bigger than a normal price level</small></label><select id="sWmult"><option value="2">2x (more walls)</option><option value="3">3x</option><option value="5">5x (only the biggest)</option></select></div>
   <div class="row"><label>Wall must stay at least<small>filters out orders that flash and disappear</small></label><select id="sWpers"><option value="20">20 s</option><option value="60">1 min</option><option value="180">3 min</option><option value="600">10 min</option></select></div>
@@ -120,7 +121,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
   <div class="help">
-    <b>Footprint:</b> each candle split into price rows, <b>sellers x buyers</b> — left number = market sells (hit the bid), right = market buys (lifted the ask), in MT5 lots (or ounces — Settings). Green row = more buying, red = more selling. <b>Bold green/red numbers</b> = imbalance (one side 3x the other, diagonally). Yellow box = busiest price of the candle. Under each candle: <b>Δ</b> buys − sells, volume, and the day's cumulative delta (CVD).<br>
+    <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
@@ -143,6 +144,7 @@ const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second colum
 const SERVER = 'https://178-128-194-91.sslip.io';   // our 24/7 recorder (DigitalOcean, Frankfurt)
 const HIST_MIN = 120;       // minutes of recorded order book loaded from the server when the app opens
 const MAXCALLS = 60;         // max REST calls for the trade history
+const FPH = {1: 6, 2: 12, 3: 12, 5: 24, 15: 72, 30: 120, 60: 240, 240: 720};   // hours of footprint history per candle size (from the server)
 const C = {bg: '#0b0e14', grid: '#161c28', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341'};
 
 let S = Object.assign({}, DEF);
@@ -173,6 +175,16 @@ let dirty = true, loading = '';
 const book = {b: new Map(), a: new Map(), state: 'wait', buf: [], last: 0, pu: 0, bb: 0, ba: 0};
 
 const rowOf = p => Math.floor(p / S.step + 1e-7);
+const tfLabel = (tf = S.tf) => tf >= 60 ? (tf / 60) + 'h' : tf + 'm';
+const subTf = () => S.tf <= 60 ? S.tf : 60;             // server candle size (4h candles are built from 1h pieces)
+// 4h candles start at MT5 server midnight (= New York 17:00 close: UTC+3 in US summer time, UTC+2 in winter)
+const nyH = new Intl.DateTimeFormat('en-US', {timeZone: 'America/New_York', hour: '2-digit', hour12: false}), mt5Memo = new Map();
+function mt5Off(T) {
+  const d = Math.floor(T / 86400000); let o = mt5Memo.get(d);
+  if (o === undefined) { const h = +nyH.formatToParts(new Date(d * 86400000 + 43200000)).find(x => x.type === 'hour').value % 24; o = (12 - h === 4 ? 3 : 2) * 3600000; mt5Memo.set(d, o); }
+  return o;
+}
+function tfKey(T) { const tf = S.tf * 60000; if (S.tf <= 60) return T - T % tf; const o = mt5Off(T); return Math.floor((T + o) / tf) * tf - o; }
 const fmtV = v => v >= 10000 ? (v / 1000).toFixed(0) + 'k' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 10 ? Math.round(v).toString() : v >= 0.05 ? v.toFixed(1) : '0';
 // ---- MT5 price matching. Automatic: while the real gold market is open, Binance's index price is built from real
 // spot-gold quotes, so (Binance price - index) is exactly the gap to spot gold / MT5. It is measured every 10 s,
@@ -220,6 +232,8 @@ function offStatus() {
 }
 const tFmt = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false});
 const tFmtS = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
+const tFmtD = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false});
+const tFmtDay = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, weekday: 'short', day: 'numeric', month: 'short'});
 function tiranaMidnight(ms) {
   const parts = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'}).formatToParts(new Date(ms));
   const g = k => +((parts.find(x => x.type === k) || {}).value || 0);
@@ -234,7 +248,7 @@ async function getJSON(path) {
 // ---------------------------------------------------------------- aggregation
 function newCandle(t) { return {t, o: NaN, h: -Infinity, l: Infinity, c: NaN, buy: 0, sell: 0, cells: new Map(), lite: true, sig: null, done: false}; }
 function candleFor(T) {
-  const tf = S.tf * 60000, k = Math.floor(T / tf) * tf;
+  const k = tfKey(T);
   let c = candles.get(k);
   if (!c) { c = newCandle(k); candles.set(k, c); keysCache = null; }
   return c;
@@ -245,7 +259,7 @@ function addKline(K) {
   if (isNaN(c.o)) c.o = o;
   c.c = cl; if (h > c.h) c.h = h; if (l < c.l) c.l = l;
   c.buy += tb; c.sell += v - tb;
-  if (t >= sessStart && v > 0) {
+  if (t >= sessStart && t < profCut && v > 0) {
     sessBuy += tb; sessSell += v - tb;
     const r0 = rowOf(l), r1 = rowOf(h), k = r1 - r0 + 1;
     for (let r = r0; r <= r1; r++) {
@@ -259,8 +273,17 @@ function checkSession(T) {
   sessStart = tiranaMidnight(T); nextSess = tiranaMidnight(sessStart + 30 * 3600000);
   prof = new Map(); sessBuy = 0; sessSell = 0;
 }
-function addTrade(i) {
+function addTrade(i, cand = true) {       // cand = false: trade is already inside the server's footprint history
   const T = tT[i], p = tP[i], q = tQ[i], m = tM[i];
+  if (cand) addTradeCandle(T, p, q, m);
+  const s = Math.floor(T / 1000);
+  let o = secs.get(s);
+  if (!o) { o = {b: 0, s: 0, pb: 0, ps: 0, last: p}; secs.set(s, o); }
+  if (m) { o.s += q; o.ps += p * q; } else { o.b += q; o.pb += p * q; }
+  o.last = p;
+  lastPrice = p;
+}
+function addTradeCandle(T, p, q, m) {
   checkSession(T);
   const c = candleFor(T);
   if (c.lite && c.cells.size === 0 && !isNaN(c.o)) c.partial = true;   // started from 1-min data, rows only from here on
@@ -274,12 +297,55 @@ function addTrade(i) {
     let pc = prof.get(r); if (!pc) { pc = [0, 0]; prof.set(r, pc); }
     if (m) { pc[0] += q; sessSell += q; } else { pc[1] += q; sessBuy += q; }
   }
-  const s = Math.floor(T / 1000);
-  let o = secs.get(s);
-  if (!o) { o = {b: 0, s: 0, pb: 0, ps: 0, last: p}; secs.set(s, o); }
-  if (m) { o.s += q; o.ps += p * q; } else { o.b += q; o.pb += p * q; }
-  o.last = p;
-  lastPrice = p;
+}
+// footprint candles from the server: [t, o, h, l, c, sell, buy, first_row, sell, buy, ...] + session profile
+let srvFP = null, fpInfo = {state: 'not loaded'}, profCut = Infinity, fpGen = 0;
+function fpUsable() { return srvFP && srvFP.tfReq === subTf() && srvFP.stepReq === S.step && srvFP.symReq === S.sym ? srvFP : null; }
+function applySrvFP(d) {
+  for (const a of d.c) {
+    const c = candleFor(a[0]);
+    if (c.cells.size === 0 && !isNaN(c.o)) c.partial = true;      // older part of this candle only from 1-min data
+    if (isNaN(c.o)) c.o = a[1];
+    c.c = a[4]; if (a[2] > c.h) c.h = a[2]; if (a[3] < c.l) c.l = a[3];
+    c.sell += a[5]; c.buy += a[6]; c.lite = false;
+    for (let i = 8, r = a[7]; i < a.length; i += 2, r++) {
+      const sv = a[i], bv = a[i + 1]; if (!sv && !bv) continue;
+      let cell = c.cells.get(r); if (!cell) { cell = [0, 0]; c.cells.set(r, cell); }
+      cell[0] += sv; cell[1] += bv;
+    }
+  }
+  const pr = d.p || [];
+  for (let i = 1, r = pr[0]; i < pr.length; i += 2, r++) {
+    const sv = pr[i], bv = pr[i + 1]; if (!sv && !bv) continue;
+    let pc = prof.get(r); if (!pc) { pc = [0, 0]; prof.set(r, pc); }
+    pc[0] += sv; pc[1] += bv; sessSell += sv; sessBuy += bv;
+  }
+}
+async function loadFP(until) {
+  if (S.sym !== 'XAUUSDT') { fpInfo = {state: 'the server records XAUUSDT only'}; return false; }
+  const sub = subTf(), from = until - (FPH[S.tf] || 24) * 3600000, t0 = Date.now(), step = S.step, sym = S.sym;
+  fpInfo = {state: 'loading…'};
+  try {
+    const r = await fetch(`${SERVER}/api/fp?tf=${sub}&step=${step}&from=${from}&until=${until}&sess=${sessStart}`, {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    d.tfReq = sub; d.stepReq = step; d.symReq = sym;
+    srvFP = d;
+    fpInfo = {state: 'ok', n: d.c.length, first: d.first, until: d.until, ms: Date.now() - t0, kb: 0};
+    return true;
+  } catch (e) {
+    srvFP = null; fpInfo = {state: 'could not load (' + e.message + ') — footprint only for the recent trades'};
+    return false;
+  }
+}
+async function reloadFP() {               // candle size / row size changed: fetch the history again, then rebuild
+  const g = ++fpGen;
+  loading = `loading ${tfLabel()} footprint…`; dirty = true;
+  const now = Date.now(), until = n ? Math.ceil(tT[0] / 60000) * 60000 : now - now % 60000;
+  await loadFP(until);
+  if (g !== fpGen) return;
+  loading = ''; rebuildAll(); renderSrv();
 }
 function sortedKeys() { if (!keysCache) keysCache = [...candles.keys()].sort((a, b) => a - b); return keysCache; }
 
@@ -287,9 +353,13 @@ function rebuildAll() {
   candles = new Map(); keysCache = null; prof = new Map(); sessBuy = 0; sessSell = 0; secs = new Map();
   const now = Date.now();
   sessStart = tiranaMidnight(now); nextSess = tiranaMidnight(sessStart + 30 * 3600000);
-  const cut = n ? Math.floor(tT[0] / 60000) * 60000 : Infinity;
-  for (const K of klines) { if (K[0] >= cut) break; addKline(K); }
-  for (let i = 0; i < n; i++) addTrade(i);
+  const fp = fpUsable();
+  const split = fp ? fp.until : (n ? Math.floor(tT[0] / 60000) * 60000 : Infinity);      // server history before, own trades after
+  const kCut = fp ? Math.min(fp.first || split, split) : split;                          // 1-min candles only before both
+  profCut = fp && fp.p && fp.p.length ? (fp.pfrom || split) : Infinity;
+  for (const K of klines) { if (K[0] >= kCut) break; addKline(K); }
+  if (fp) applySrvFP(fp);
+  for (let i = 0; i < n; i++) addTrade(i, tT[i] >= split);
   const ks = sortedKeys();
   for (let j = 0; j < ks.length - 1; j++) { const c = candles.get(ks[j]); c.done = true; c.sig = analyze(c); }
   dirty = true;
@@ -349,9 +419,9 @@ function onCandleClosed(c) {
   if (c.sig.absBuy) { const lv = nearLevel(c.sig.absBuy.row, va); c.sig.absBuy.lv = lv; msgs.push(`ABSORPTION at the low ${fmtP(c.l)} — selling absorbed (bullish)${lv ? ' ★ at ' + lv : ''}`); }
   if (c.sig.absSell) { const lv = nearLevel(c.sig.absSell.row, va); c.sig.absSell.lv = lv; msgs.push(`ABSORPTION at the high ${fmtP(c.h)} — buying absorbed (bearish)${lv ? ' ★ at ' + lv : ''}`); }
   for (const s of c.sig.stacked || []) msgs.push(`${s.to - s.from + 1} stacked ${s.side > 0 ? 'BUY' : 'SELL'} imbalances ${fmtP(s.from * S.step)}–${fmtP((s.to + 1) * S.step)}`);
-  for (const m of msgs) { signals.unshift({t: c.t, tf: S.tf, m}); }
+  for (const m of msgs) { signals.unshift({t: c.t, tf: tfLabel(), m}); }
   signals = signals.slice(0, 60);
-  toast(`${S.tf}m ${when}: ${msgs[0]}`);
+  toast(`${tfLabel()} ${when}: ${msgs[0]}`);
   if (S.sound) beep(c.sig.absBuy || (c.sig.stacked && c.sig.stacked[0].side > 0) ? 880 : 520);
   renderTape();
 }
@@ -480,7 +550,7 @@ function pruneSecs() {
 }
 async function start() {
   wsGen++; try { if (ws) ws.close(); } catch (e) {} try { if (wsBk) wsBk.close(); } catch (e) {}
-  n = 0; lastId = 0; pending = []; filling = true; candles = new Map(); keysCache = null; cols = []; signals = []; lastPrice = 0;
+  n = 0; lastId = 0; pending = []; filling = true; candles = new Map(); keysCache = null; cols = []; signals = []; lastPrice = 0; srvFP = null; fpGen++;
   $('#hSym').textContent = S.sym;
   loading = 'loading history…'; status(loading, '#f59e0b'); dirty = true;
   connect();
@@ -496,21 +566,29 @@ async function start() {
       if (arr.length < 1500) break;
       st = arr[arr.length - 1][0] + 60000;
     }
-    const want = now - S.backfill * 60000;
-    const chunks = [];
-    let arr = await getJSON(`/fapi/v1/aggTrades?symbol=${S.sym}&limit=1000`);
-    let calls = 1;
-    if (arr.length) {
-      chunks.push(arr);
-      let firstId = arr[0].a, firstT = arr[0].T;
+    const sg = startGen, chunks = [];
+    let firstId = 0, firstT = Infinity, calls = 0;
+    const page = async want => {             // Binance trades from now back to `want`
+      if (!chunks.length) {
+        const arr = await getJSON(`/fapi/v1/aggTrades?symbol=${S.sym}&limit=1000`); calls++;
+        if (!arr.length) return;
+        chunks.push(arr); firstId = arr[0].a; firstT = arr[0].T;
+      }
       while (firstT > want && calls < MAXCALLS && firstId > 0) {
         loading = `loading history ${Math.min(99, Math.round(100 * (now - firstT) / (now - want)))}%`; status(loading, '#f59e0b');
-        arr = await getJSON(`/fapi/v1/aggTrades?symbol=${S.sym}&fromId=${Math.max(0, firstId - 1000)}&limit=1000`); calls++;
+        let arr = await getJSON(`/fapi/v1/aggTrades?symbol=${S.sym}&fromId=${Math.max(0, firstId - 1000)}&limit=1000`); calls++;
         arr = arr.filter(d => d.a < firstId);
         if (!arr.length) break;
         chunks.push(arr); firstId = arr[0].a; firstT = arr[0].T;
       }
-    }
+    };
+    await page(now - 5 * 60000);
+    loading = `loading ${tfLabel()} footprint history…`; status(loading, '#f59e0b');
+    const split = isFinite(firstT) ? Math.ceil(firstT / 60000) * 60000 : now - now % 60000;
+    const ok = await loadFP(split);
+    if (sg !== startGen) return;
+    if (!ok) await page(now - S.backfill * 60000);          // no server: own trades only, further back
+    const want = ok ? 0 : now - S.backfill * 60000;
     const all = chunks.flat().sort((x, y) => x.a - y.a);
     for (const d of all) if (d.T >= want || all.length < 2000) pushTrade(d.a, d.T, +d.p, +d.q, d.m ? 1 : 0);
     lastId = all.length ? all[all.length - 1].a : 0;
@@ -574,11 +652,13 @@ async function loadBookHistory(minutes) {
     srvHist = {state: 'could not load (' + e.message + ') — live book only'};
   } finally { histBusy = false; renderSrv(); }
 }
+let srvHistJ = null;
 async function loadSrvStatus() {
   try {
     const r = await fetch(`${SERVER}/status.json?${Date.now()}`, {cache: 'no-store'});
     srvStat = await r.json(); srvStat._at = Date.now();
   } catch (e) { srvStat = {_err: e.message, _at: Date.now()}; }
+  try { const r = await fetch(`${SERVER}/history.json?${Date.now()}`, {cache: 'no-store'}); if (r.ok) srvHistJ = await r.json(); } catch (e) {}
   renderSrv();
 }
 function renderSrv() {
@@ -603,6 +683,11 @@ function renderSrv() {
     $('#srvT').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
     $('#srvLog').textContent = (s.log || []).slice().reverse().join('\n');
   }
+  const f = fpInfo, hj = srvHistJ;
+  const days = hj && hj.zip_days ? hj.zip_days.length : null;
+  $('#srvFp').innerHTML = (f.state !== 'ok' ? f.state :
+    `${f.n} ${tfLabel()} candles with full detail from ${f.first ? tFmtDay.format(f.first) + ' ' + tFmt.format(f.first) : '—'}, loaded in ${(f.ms / 1000).toFixed(1)} s.`) +
+    (days != null ? `<br>Server: ${days} of ${hj.days_wanted} days of Binance's official trade files ready` + (hj.missing_zip_days && hj.missing_zip_days.length ? ` (${hj.missing_zip_days.length} still coming)` : '') + ', plus its own 24/7 recording.' + (hj.backfill ? `<br>${hj.backfill}` : '') : '');
   const h = srvHist;
   $('#srvHist').innerHTML = h.state !== 'ok' ? h.state :
     `Loaded ${h.got} recorded snapshots (${tFmt.format(h.from * 1000)}–${tFmt.format(h.to * 1000)}) in ${(h.ms / 1000).toFixed(1)} s; ` +
@@ -714,7 +799,7 @@ function drawFP() {
   const vis = [];
   for (let j = 0; j < nVis; j++) { const i = last - j; if (i < 0) break; if (i < ks.length) vis.push({c: candles.get(ks[i]), x: x1 - (j + 1) * colW}); }
   let maxCell = 1;
-  for (const {c} of vis) for (const v of c.cells.values()) { const t = v[0] + v[1]; if (t > maxCell) maxCell = t; }
+  for (const {c} of vis) for (const v of c.cells.values()) { if (v[0] > maxCell) maxCell = v[0]; if (v[1] > maxCell) maxCell = v[1]; }
   const va = calcVA(prof);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
   if (va) {
@@ -745,7 +830,7 @@ function drawFP() {
   for (const {c, x} of vis) {
     const cx = x + colW / 2, d = c.buy - c.sell;
     if (x + colW < 0) continue;
-    ctx.fillStyle = C.dim; ctx.fillText(tFmt.format(c.t), cx, plotH + 12);
+    ctx.fillStyle = C.dim; ctx.fillText(S.tf >= 60 ? (colW >= 70 ? tFmtD.format(c.t) : tFmt.format(c.t)) : tFmt.format(c.t), cx, plotH + 12);
     ctx.fillStyle = d >= 0 ? C.buy : C.sell; ctx.fillText((d >= 0 ? '+' : '-') + fmtQ(Math.abs(d)), cx, plotH + 26);
     ctx.fillStyle = C.dim; ctx.fillText(fmtQ(c.buy + c.sell), cx, plotH + 39);
     const v = cvdAt.get(c.t);
@@ -757,9 +842,9 @@ function drawFP() {
     ctx.strokeStyle = C.acc; ctx.lineWidth = 1.5; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.lineWidth = 1;
   }
   ctx.fillStyle = C.dim; ctx.fillText('CVD ' + (sessBuy - sessSell >= 0 ? '+' : '-') + fmtQ(Math.abs(sessBuy - sessSell)), W - AX + 4, plotH + 26);
-  ctx.fillText(S.tf + 'm · $' + S.step, W - AX + 4, plotH + 12);
+  ctx.fillText(tfLabel() + ' · $' + S.step, W - AX + 4, plotH + 12);
 }
-function drawCandleFP(c, x, cw, yOf, rowH, maxCell, plotH) {
+function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   const step = S.step, up = c.c >= c.o, col = up ? C.buy : C.sell;
   if (isNaN(c.o)) return;
   if (c.lite || !c.cells.size) {
@@ -768,40 +853,62 @@ function drawCandleFP(c, x, cw, yOf, rowH, maxCell, plotH) {
     const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.globalAlpha = 0.85; ctx.fillRect(cx - bw / 2, Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo))); ctx.globalAlpha = 1;
     return;
   }
-  const bx = x + 3;
-  ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(bx + 1.5, yOf(c.h)); ctx.lineTo(bx + 1.5, yOf(c.l)); ctx.stroke();
-  const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.fillRect(bx, Math.min(yo, yc), 3, Math.max(1, Math.abs(yc - yo)));
-  const cx0 = x + 9, cw2 = cw - 12, mid = cx0 + cw2 / 2;
-  let pocR = null, pv = -1;
-  for (const [r, v] of c.cells) { const t = v[0] + v[1]; if (t > pv) { pv = t; pocR = r; } }
-  const showText = rowH >= 11 && cw2 >= 50;
-  const fs = Math.max(9, Math.min(12, rowH - 4));
-  ctx.font = `${fs}px ui-monospace,Menlo,monospace`; ctx.textBaseline = 'middle';
+  // layout:  [ sells column ][ candle ][ buys column ]
+  const gap = Math.max(4, Math.round(cw * 0.07)), inner = cw - gap;
+  const bodyW = Math.max(5, Math.min(14, Math.round(inner * 0.13)));
+  const cellW = Math.floor((inner - bodyW - 4) / 2);
+  const xS = Math.round(x + gap / 2), xBody = xS + cellW + 2, xB = xBody + bodyW + 2, cxb = xBody + bodyW / 2;
+  ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(cxb) + 0.5, yOf(c.h)); ctx.lineTo(Math.round(cxb) + 0.5, yOf(c.l)); ctx.stroke();
+  const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.fillRect(xBody + 1, Math.min(yo, yc), bodyW - 2, Math.max(1, Math.abs(yc - yo)));
+  let pocR = null, pv = -1, lo = Infinity;
+  for (const [r, v] of c.cells) { const t = v[0] + v[1]; if (t > pv) { pv = t; pocR = r; } if (r < lo) lo = r; }
+  const showText = rowH >= 10 && cellW >= 20;
+  const fs = Math.max(8, Math.min(12, Math.floor(rowH - 4), Math.floor(cellW / 3.3)));
+  const mono = `${fs}px ui-monospace,Menlo,monospace`, monoB = `bold ${fs}px ui-monospace,Menlo,monospace`;
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  const shade = (rgb, v) => `rgba(${rgb},${(0.08 + 0.62 * Math.sqrt(Math.min(1, v / mx))).toFixed(3)})`;
   for (const [r, v] of c.cells) {
     const yTop = yOf((r + 1) * step);
     if (yTop > plotH || yTop + rowH < 0) continue;
-    const tot = v[0] + v[1], a = 0.07 + 0.5 * Math.sqrt(tot / maxCell);
-    ctx.fillStyle = v[1] >= v[0] ? `rgba(38,166,154,${a})` : `rgba(239,83,80,${a})`;
-    ctx.fillRect(cx0, yTop + 0.5, cw2, rowH - 1);
+    const below = c.cells.get(r - 1), above = c.cells.get(r + 1), poc = r === pocR;
+    const bi = v[1] >= MINIMB && v[1] >= S.imb * Math.max(below ? below[0] : 0, 0.01);     // buyers vs sellers one row lower
+    const si = v[0] >= MINIMB && v[0] >= S.imb * Math.max(above ? above[1] : 0, 0.01);     // sellers vs buyers one row higher
+    const h = Math.max(1, rowH - 1), y = yTop + 0.5;
+    ctx.fillStyle = poc ? '#5d6675' : si ? '#c62828' : shade('239,83,80', v[0]); ctx.fillRect(xS, y, cellW, h);
+    ctx.fillStyle = poc ? '#5d6675' : bi ? '#0f8a6c' : shade('38,166,154', v[1]); ctx.fillRect(xB, y, cellW, h);
     if (showText) {
-      const below = c.cells.get(r - 1), above = c.cells.get(r + 1);
-      const bi = v[1] >= MINIMB && v[1] >= S.imb * Math.max(below ? below[0] : 0, 0.01);
-      const si = v[0] >= MINIMB && v[0] >= S.imb * Math.max(above ? above[1] : 0, 0.01);
-      const y = yTop + rowH / 2;
-      ctx.textAlign = 'right'; ctx.fillStyle = si ? '#ff7b7b' : '#d8dee6'; ctx.font = `${si ? 'bold ' : ''}${fs}px ui-monospace,Menlo,monospace`; ctx.fillText(fmtQ(v[0]), mid - 5, y);
-      ctx.textAlign = 'center'; ctx.fillStyle = C.dim; ctx.font = `${fs}px ui-monospace,Menlo,monospace`; ctx.fillText('x', mid, y);
-      ctx.textAlign = 'left'; ctx.fillStyle = bi ? '#5ee6a0' : '#d8dee6'; ctx.font = `${bi ? 'bold ' : ''}${fs}px ui-monospace,Menlo,monospace`; ctx.fillText(fmtQ(v[1]), mid + 5, y);
+      const ty = yTop + rowH / 2;
+      ctx.font = si ? monoB : mono; ctx.fillStyle = v[0] > 0 ? '#f2f5f8' : 'rgba(242,245,248,.35)'; ctx.fillText(fmtQ(v[0]), xS + cellW / 2, ty);
+      ctx.font = bi ? monoB : mono; ctx.fillStyle = v[1] > 0 ? '#f2f5f8' : 'rgba(242,245,248,.35)'; ctx.fillText(fmtQ(v[1]), xB + cellW / 2, ty);
     }
-    if (r === pocR) { ctx.strokeStyle = C.poc; ctx.lineWidth = 1.2; ctx.strokeRect(cx0 + 0.5, yTop + 0.5, cw2 - 1, rowH - 1); ctx.lineWidth = 1; }
+  }
+  const sg = c.sig;
+  for (const st of (sg && sg.stacked) || []) {          // 3+ stacked imbalances: bar on the outer edge
+    const yA = yOf((st.to + 1) * step), yB = yOf(st.from * step);
+    ctx.fillStyle = st.side > 0 ? '#2ee6b0' : '#ff5a5a';
+    ctx.fillRect(st.side > 0 ? xB + cellW - 3 : xS, yA, 3, yB - yA);
+  }
+  // under the candle: column totals + Delta / Total box
+  let yb = yOf(lo * step) + 3;
+  ctx.font = 'bold 11px -apple-system,sans-serif';
+  if (sg && sg.absBuy) { tri(cxb, yb + 1, 1, C.buy); ctx.fillStyle = C.buy; ctx.fillText('ABS' + (sg.absBuy.lv ? '★' : ''), cxb, yb + 18); yb += 26; }
+  if (sg && sg.absSell) { const y = yOf(c.h) - 4; tri(cxb, y, -1, C.sell); ctx.fillStyle = C.sell; ctx.fillText('ABS' + (sg.absSell.lv ? '★' : ''), cxb, y - 16); }
+  if (c.partial) { ctx.fillStyle = C.dim; ctx.font = '10px sans-serif'; ctx.fillText('partial', cxb, yOf(c.h) - (sg && sg.absSell ? 34 : 8)); }
+  if (cellW >= 20 && yb < plotH) {
+    ctx.font = mono;
+    ctx.fillStyle = '#ff8a80'; ctx.fillText(fmtQ(c.sell), xS + cellW / 2, yb + 7);
+    ctx.fillStyle = '#5ee6c0'; ctx.fillText(fmtQ(c.buy), xB + cellW / 2, yb + 7);
+    const bx = xS, bw = xB + cellW - xS, by = yb + 15, bh = 2 * fs + 12, d = c.buy - c.sell;
+    if (by < plotH) {
+      ctx.fillStyle = '#161b22'; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = '#30363d'; ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      ctx.textAlign = 'left'; ctx.fillStyle = C.dim; ctx.font = `${fs}px -apple-system,sans-serif`;
+      ctx.fillText('Delta', bx + 4, by + 4 + fs / 2 + 1); ctx.fillText('Total', bx + 4, by + 8 + fs * 1.5 + 1);
+      ctx.textAlign = 'right'; ctx.font = monoB;
+      ctx.fillStyle = d >= 0 ? '#5ee6c0' : '#ff8a80'; ctx.fillText((d >= 0 ? '+' : '−') + fmtQ(Math.abs(d)), bx + bw - 4, by + 4 + fs / 2 + 1);
+      ctx.fillStyle = '#e6edf3'; ctx.fillText(fmtQ(c.buy + c.sell), bx + bw - 4, by + 8 + fs * 1.5 + 1);
+    }
   }
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  if (c.partial) { ctx.fillStyle = C.dim; ctx.font = '10px sans-serif'; ctx.fillText('partial', cx0, yOf(c.h) - 4); }
-  const sg = c.sig; if (!sg) return;
-  ctx.font = 'bold 11px -apple-system,sans-serif'; ctx.textAlign = 'center';
-  if (sg.absBuy) { const y = yOf(c.l) + 4; tri(mid, y, 1, C.buy); ctx.fillStyle = C.buy; ctx.fillText('ABS' + (sg.absBuy.lv ? '★' : ''), mid, y + 22); }
-  if (sg.absSell) { const y = yOf(c.h) - 4; tri(mid, y, -1, C.sell); ctx.fillStyle = C.sell; ctx.fillText('ABS' + (sg.absSell.lv ? '★' : ''), mid, y - 14); }
-  ctx.textAlign = 'left';
-  for (const s of sg.stacked || []) { const yA = yOf((s.to + 1) * step), yB = yOf(s.from * step); ctx.fillStyle = s.side > 0 ? C.buy : C.sell; ctx.fillRect(x + cw - 3, yA, 3, yB - yA); }
 }
 function tri(x, y, dir, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + dir * 10); ctx.lineTo(x + 6, y + dir * 10); ctx.closePath(); ctx.fill(); }
 function drawProfile(x0, w, yOf, rowH, plotH, va) {
@@ -947,7 +1054,7 @@ function renderTape() {
     if (o.s >= S.big) rows.push(`<tr><td>${tFmtS.format(t * 1000)}</td><td class="s">SELL</td><td>${fmtP(o.ps / o.s)}</td><td>${(o.s / 100).toFixed(2)}</td><td>${fmtV(o.s)}</td></tr>`);
   }
   $('#big').innerHTML = rows.join('') || `<tr><td colspan="5" class="d">No trades ≥ ${(S.big / 100).toFixed(2)} lots in one second yet.</td></tr>`;
-  if (signals.length) $('#sigs').innerHTML = signals.map(s => `<div class="sig"><span class="d">${tFmt.format(s.t)} · ${s.tf}m</span> ${s.m}</div>`).join('');
+  if (signals.length) $('#sigs').innerHTML = signals.map(s => `<div class="sig"><span class="d">${tFmt.format(s.t)} · ${typeof s.tf === 'number' ? s.tf + 'm' : s.tf}</span> ${s.m}</div>`).join('');
 }
 
 // ---------------------------------------------------------------- header
@@ -1057,7 +1164,8 @@ $('#sOk').onclick = () => {
   if (S.sym !== old.sym) { S.autoOff = null; S.autoOffT = 0; }
   saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
   if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); return; }
-  if (S.tf !== old.tf || S.step !== old.step || S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
+  if (S.tf !== old.tf || S.step !== old.step) reloadFP();
+  else if (S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
   if (S.hstep !== old.hstep) { cols = []; histBusy = false; startGen++; loadBookHistory(HIST_MIN); }
   dirty = true; renderTape();
 };
@@ -1074,8 +1182,11 @@ function beep(f) {
 
 // ---------------------------------------------------------------- boot
 window.addEventListener('resize', resize);
+let hiddenAt = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') { hiddenAt = Date.now(); return; }
+  if (hiddenAt && Date.now() - hiddenAt > 10 * 60000 && !loading) { hiddenAt = 0; start(); return; }   // long pause: reload everything
+  hiddenAt = 0;
   if (wsDown()) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
   const gapS = cols.length ? Date.now() / 1000 - cols[cols.length - 1].t : HIST_MIN * 60;
   if (gapS > 10) loadBookHistory(Math.min(HIST_MIN, Math.ceil(gapS / 60) + 2));
