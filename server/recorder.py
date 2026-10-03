@@ -23,7 +23,9 @@ BASE = os.environ.get("GOF_DATA") or os.path.join(HERE, "..", "orderflow_data")
 STATUS_DIR = os.environ.get("GOF_STATUS") or BASE
 VERSION_FILE = os.environ.get("GOF_VERSION_FILE", "")
 API = "https://fapi.binance.com"
-WS = "wss://fstream.binance.com/stream?streams={s}@aggTrade/{s}@depth@500ms"
+# Binance (since Apr 23 2026): trades only arrive on /market, the order book only on /public -> two connections
+WS_TRADES = "wss://fstream.binance.com/market/stream?streams={s}@aggTrade"
+WS_BOOK = "wss://fstream.binance.com/public/stream?streams={s}@depth@500ms"
 BOOK_EVERY = 2.0          # seconds between book snapshots
 BOOK_STEP = 0.25          # $ per book row
 BOOK_RANGE = 25.0         # +- $ around the price
@@ -172,7 +174,8 @@ class Recorder:
         self.count, self.count_prev, self.t0 = 0, None, time.time()
         self.filling, self.pending, self.fill_future = False, [], None
         self.fill_info = ""
-        self.connected, self.connects = False, 0
+        self.conn, self.connects = {"trades": False, "book": False}, 0
+        self.snap, self.retry_at = None, 0
         self.version = ""
         try:
             if VERSION_FILE and os.path.exists(VERSION_FILE):
@@ -315,7 +318,8 @@ class Recorder:
                 "symbol": SYMBOL,
                 "version": self.version,
                 "running_for_min": round((now - self.t0) / 60, 1),
-                "connected_to_binance": self.connected,
+                "connected_to_binance": all(self.conn.values()),
+                "streams_connected": dict(self.conn),
                 "connections_since_start": self.connects,
                 "last_trade_utc": datetime.fromtimestamp(self.last_t / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S") if self.last_t else None,
                 "last_trade_age_sec": round(now - self.last_t / 1000) if self.last_t else None,
@@ -338,7 +342,77 @@ class Recorder:
         except Exception as e:      # never let the status page stop the recording
             print("status write failed:", e, flush=True)
 
-    # ---------------- main loop
+    # ---------------- main loop: two streams + housekeeping
+    def depth_url(self):
+        return f"/fapi/v1/depth?symbol={SYMBOL}&limit=1000"
+
+    def book_opened(self):
+        self.book_state, self.book_buf = "wait", []
+        self.snap = asyncio.get_running_loop().run_in_executor(None, get_json, self.depth_url())
+
+    async def stream(self, name, url, on_open=None):
+        backoff = 1
+        while True:
+            try:
+                async with websockets.connect(url, ping_interval=20, ping_timeout=60, max_size=2 ** 22) as ws:
+                    self.conn[name], self.connects = True, self.connects + 1
+                    log(f"connected ({name})")
+                    backoff = 1
+                    if on_open:
+                        on_open()
+                    async for raw in ws:
+                        msg = json.loads(raw).get("data", {})
+                        e = msg.get("e")
+                        if e == "aggTrade":
+                            self.on_trade(msg)
+                        elif e == "depthUpdate":
+                            self.on_depth(msg)
+                    reason = "closed by Binance"
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                reason = f"{type(e).__name__}: {e}"
+            self.conn[name] = False
+            if name == "book":
+                self.book_state = "down"
+            log(f"{name} connection lost ({reason}); retry in {backoff}s")
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60)
+
+    async def housekeeping(self):
+        next_book, next_flush, next_status, next_stat = time.time() + BOOK_EVERY, time.time() + 10, 0, time.time() + 300
+        while True:
+            await asyncio.sleep(0.25)
+            try:
+                now = time.time()
+                if self.filling and self.fill_future is not None and self.fill_future.done():
+                    self.after_fill()
+                if self.snap is not None and self.snap.done():
+                    snap, self.snap = self.snap, None
+                    try:
+                        self.install_snapshot(snap.result())
+                    except Exception as e:
+                        log("book snapshot failed:", e)
+                        self.book_state, self.retry_at = "resync", now + 5
+                if self.book_state == "resync" and self.snap is None and now >= self.retry_at and self.conn["book"]:
+                    self.book_opened()
+                if now >= next_book:
+                    self.write_book()
+                    next_book = now + BOOK_EVERY
+                if now >= next_flush:
+                    self.trades.flush()
+                    self.books.flush()
+                    next_flush = now + 10
+                if now >= next_status:
+                    self.write_status()
+                    next_status = now + STATUS_EVERY
+                if now >= next_stat:
+                    log(f"ok: {self.count} trades in the last 5 min, book {self.book_state}, "
+                        f"{len(self.bids)}/{len(self.asks)} levels")
+                    self.count_prev, self.count, next_stat = self.count, 0, now + 300
+            except Exception as e:          # keep recording whatever happens here
+                log(f"housekeeping error {type(e).__name__}: {e}")
+
     async def run(self):
         os.makedirs(BASE, exist_ok=True)
         compress_leftovers()
@@ -346,64 +420,10 @@ class Recorder:
         log(f"recording {SYMBOL} to {os.path.abspath(os.path.join(BASE, SYMBOL))}" +
             (f" - continuing after trade {self.last_id}" if self.last_id else " - starting fresh"))
         self.write_status()
-        backoff, next_status = 1, 0
-        while True:
-            try:
-                async with websockets.connect(WS.format(s=SYMBOL.lower()), ping_interval=20, ping_timeout=60,
-                                              max_size=2 ** 22) as ws:
-                    self.connected, self.connects = True, self.connects + 1
-                    log("connected")
-                    backoff = 1
-                    loop = asyncio.get_running_loop()
-                    depth_url = f"/fapi/v1/depth?symbol={SYMBOL}&limit=1000"
-                    self.book_state, self.book_buf = "wait", []
-                    snap, retry_at = loop.run_in_executor(None, get_json, depth_url), 0
-                    next_book, next_flush, next_stat = time.time() + BOOK_EVERY, time.time() + 10, time.time() + 300
-                    while True:
-                        try:
-                            raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
-                            msg = json.loads(raw).get("data", {})
-                            if msg.get("e") == "aggTrade":
-                                self.on_trade(msg)
-                            elif msg.get("e") == "depthUpdate":
-                                self.on_depth(msg)
-                        except asyncio.TimeoutError:
-                            pass
-                        now = time.time()
-                        if self.filling and self.fill_future is not None and self.fill_future.done():
-                            self.after_fill()
-                        if snap is not None and snap.done():
-                            try:
-                                self.install_snapshot(snap.result())
-                            except Exception as e:
-                                log("book snapshot failed:", e)
-                                self.book_state, retry_at = "resync", now + 5
-                            snap = None
-                        if self.book_state == "resync" and snap is None and now >= retry_at:
-                            self.book_state, self.book_buf = "wait", []
-                            snap = loop.run_in_executor(None, get_json, depth_url)
-                        if now >= next_book:
-                            self.write_book()
-                            next_book = now + BOOK_EVERY
-                        if now >= next_flush:
-                            self.trades.flush()
-                            self.books.flush()
-                            next_flush = now + 10
-                        if now >= next_status:
-                            self.write_status()
-                            next_status = now + STATUS_EVERY
-                        if now >= next_stat:
-                            log(f"ok: {self.count} trades in the last 5 min, book {self.book_state}, "
-                                f"{len(self.bids)}/{len(self.asks)} levels")
-                            self.count_prev, self.count, next_stat = self.count, 0, now + 300
-            except Exception as e:
-                self.connected = False
-                log(f"connection lost ({type(e).__name__}: {e}); retry in {backoff}s")
-                self.trades.flush()
-                self.books.flush()
-                self.write_status()
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 60)
+        s = SYMBOL.lower()
+        await asyncio.gather(self.stream("trades", WS_TRADES.format(s=s)),
+                             self.stream("book", WS_BOOK.format(s=s), self.book_opened),
+                             self.housekeeping())
 
 
 if __name__ == "__main__":
