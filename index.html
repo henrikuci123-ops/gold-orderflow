@@ -79,6 +79,7 @@ input[type=checkbox]{width:22px;height:22px}
   <canvas id="cv"></canvas>
   <div id="tape" class="hidden">
     <div class="card"><h3>Buying vs selling (aggressive)</h3><div class="flow" id="flow"></div></div>
+    <div class="card"><h3>Order walls now</h3><div id="wallList"><div class="d">Building the order book — walls appear after about a minute.</div></div></div>
     <div class="card"><h3>Signals</h3><div id="sigs"><div class="d">No signals yet — they appear when a candle closes.</div></div></div>
     <div class="card"><h3>Big trades</h3><table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Oz</th><th>MT5 lots</th></tr></thead><tbody id="big"></tbody></table></div>
   </div>
@@ -99,13 +100,19 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Match my MT5 price (manual)<small>type your MT5 XAUUSD price right now — switches to "my own offset". <span id="sNow"></span></small></label><input id="sMt5" type="number" step="0.01" inputmode="decimal" placeholder="e.g. 4142.71"></div>
   <div class="row"><label>My own offset<small>Binance minus MT5, used in "my own offset" mode</small></label><input id="sOff" type="number" step="0.01" inputmode="decimal"></div>
   <div class="row"><label>History to load<small>footprint detail for the last…</small></label><select id="sBack"><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="120">2 hours</option></select></div>
+  <div class="row"><label>Order walls<small>zones where big buy/sell orders are waiting</small></label><select id="sWalls"><option value="1">Show</option><option value="0">Hide</option></select></div>
+  <div class="row"><label>Wall size<small>how much bigger than a normal price level</small></label><select id="sWmult"><option value="2">2x (more walls)</option><option value="3">3x</option><option value="5">5x (only the biggest)</option></select></div>
+  <div class="row"><label>Wall must stay at least<small>filters out orders that flash and disappear</small></label><select id="sWpers"><option value="20">20 s</option><option value="60">1 min</option><option value="180">3 min</option><option value="600">10 min</option></select></div>
+  <div class="row"><label>Look for walls within</label><select id="sWrange"><option value="5">$5 of price</option><option value="10">$10 of price</option><option value="20">$20 of price</option></select></div>
+  <div class="row"><label>Wall zone height</label><select id="sWstep"><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option></select></div>
+  <div class="row"><label>Alert when price nears a wall</label><select id="sWalert"><option value="0">Off</option><option value="1">On</option></select></div>
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
   <div class="help">
     <b>Footprint:</b> each candle split into price rows, <b>sellers x buyers</b> — left number = market sells (hit the bid), right = market buys (lifted the ask), in ounces. Green row = more buying, red = more selling. <b>Bold green/red numbers</b> = imbalance (one side 3x the other, diagonally). Yellow box = busiest price of the candle. Under each candle: <b>Δ</b> buys − sells, volume, and the day's cumulative delta (CVD).<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
-    <b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
+    <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. They only build while the app is open.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
     Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
@@ -116,7 +123,7 @@ const API = 'https://fapi.binance.com';
 const WSB = 'wss://fstream.binance.com/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp'};
+const DEF = {sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 3600;        // heatmap history: 1 hour of 1-second columns
@@ -491,6 +498,62 @@ async function start() {
   dirty = true;
 }
 
+
+// ---------------------------------------------------------------- order walls (big waiting orders that stay)
+let walls = [], wallAlerted = new Map();
+function rowQty(c, r, k) {               // order-book size of wall row r (k heatmap buckets) in heatmap column c
+  let q = 0; for (let j = 0; j < k; j++) { const v = c.vals[r * k + j - c.base]; if (v > 0) q += v; } return q;
+}
+function calcWalls() {
+  if (!S.walls || cols.length < 3) { walls = []; return; }
+  const last = cols[cols.length - 1], hs = last.hs, k = Math.max(1, Math.round(S.wstep / hs)), ws = k * hs;
+  const mid = (last.bb + last.ba) / 2;
+  const r0 = Math.floor((mid - S.wrange) / ws), r1 = Math.floor((mid + S.wrange) / ws);
+  const cur = [];
+  for (let r = r0; r <= r1; r++) { const q = rowQty(last, r, k); if (q > 0) cur.push([r, q]); }
+  if (cur.length < 5) { walls = []; return; }
+  const med = cur.map(x => x[1]).sort((a, b) => a - b)[cur.length >> 1];
+  const out = [];
+  for (const [r, q] of cur) {
+    if (q < S.wmult * med) continue;
+    const p0 = r * ws, p1 = (r + 1) * ws;
+    const side = p1 <= last.ba + 1e-9 ? 1 : p0 >= last.bb - 1e-9 ? -1 : 0;
+    if (!side) continue;
+    let age = 0;                                   // how long has it been at least half this size?
+    for (let i = cols.length - 1; i >= 0; i--) { const c = cols[i]; if (c.hs !== hs || rowQty(c, r, k) < 0.5 * q) break; age = last.t - c.t; }
+    if (age < S.wpers) continue;
+    out.push({side, p0, p1, qty: q, mult: q / med, age});
+  }
+  const top = side => out.filter(w => w.side === side).sort((a, b) => b.qty - a.qty).slice(0, 4);
+  walls = top(1).concat(top(-1));
+  if (S.walert && lastPrice) {
+    for (const w of walls) {
+      const key = w.side + ':' + w.p0, dist = w.side > 0 ? lastPrice - w.p1 : w.p0 - lastPrice;
+      if (dist >= 0 && dist <= 0.6 && Date.now() - (wallAlerted.get(key) || 0) > 600000) {
+        wallAlerted.set(key, Date.now());
+        toast(`Price ${fmtP(lastPrice)} is near a ${w.side > 0 ? 'BUY' : 'SELL'} wall ${fmtP(w.p0)}–${fmtP(w.p1)} (${fmtV(w.qty)} oz, ${w.mult.toFixed(1)}x normal, held ${Math.round(w.age / 60)} min)`);
+        if (S.sound) beep(w.side > 0 ? 880 : 520);
+      }
+    }
+  }
+  dirty = true;
+}
+function drawWalls(yOf, x1, plotH) {
+  if (!S.walls || !walls.length) return;
+  ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const w of walls) {
+    const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
+    const a = Math.min(0.32, 0.12 + 0.03 * (w.mult - S.wmult));
+    const rgb = w.side > 0 ? '38,166,154' : '239,83,80';
+    ctx.fillStyle = `rgba(${rgb},${a})`; ctx.fillRect(0, y0, x1, Math.max(3, y1 - y0));
+    ctx.strokeStyle = `rgba(${rgb},.7)`; ctx.beginPath(); ctx.moveTo(0, Math.round(y0) + 0.5); ctx.lineTo(x1, Math.round(y0) + 0.5); ctx.moveTo(0, Math.round(y1) + 0.5); ctx.lineTo(x1, Math.round(y1) + 0.5); ctx.stroke();
+    ctx.fillStyle = `rgb(${rgb})`;
+    ctx.fillText(`${w.side > 0 ? 'BUY' : 'SELL'} WALL ${fmtV(w.qty)} oz`, x1 - 6, (y0 + y1) / 2);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+}
+setInterval(calcWalls, 2000);
+
 // ---------------------------------------------------------------- canvas + views
 const cv = $('#cv'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1;
@@ -543,6 +606,7 @@ function drawFP() {
     ctx.fillStyle = 'rgba(59,130,246,0.05)';
     const yA = yOf((va.vah + 1) * step), yB = yOf(va.val * step); ctx.fillRect(0, yA, x1, yB - yA);
   }
+  drawWalls(yOf, x1, plotH);
   for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, rowH, maxCell, plotH);
   if (va) {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(59,130,246,.75)';
@@ -725,6 +789,10 @@ function drawHM() {
     ctx.fillRect(x1 + 2, yOf((r + 1) * hs) + 0.5, len, Math.max(1, rowPx - 1));
   }
   ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif'; ctx.fillText('book', x1 + 4, 12);
+  if (S.walls) for (const w of walls) {
+    const y0 = yOf(w.p1), y1 = yOf(w.p0); if (y1 < 0 || y0 > plotH) continue;
+    ctx.strokeStyle = w.side > 0 ? 'rgba(38,166,154,.9)' : 'rgba(239,83,80,.9)'; ctx.lineWidth = 1.5; ctx.strokeRect(x1 - 70, y0, 70 + BW - 2, Math.max(2, y1 - y0)); ctx.lineWidth = 1;
+  }
   priceAxis(W - AX, yOf, 0, plotH, rowPx, hs);
   // time axis
   ctx.fillStyle = '#10141d'; ctx.fillRect(0, plotH, W, TB);
@@ -737,7 +805,16 @@ function dot(x, y, v, col) { const r = Math.min(22, 2.5 + 4 * Math.sqrt(v / S.bi
 
 // ---------------------------------------------------------------- tape tab (DOM)
 let tapeT = 0;
+function renderWallList() {
+  const el = $('#wallList'); if (!el) return;
+  if (!S.walls) { el.innerHTML = '<div class="d">Walls are hidden (Settings).</div>'; return; }
+  if (!walls.length) { el.innerHTML = `<div class="d">No walls ${S.wmult}x bigger than normal held ${S.wpers}s+ within $${S.wrange} of price right now.</div>`; return; }
+  const sorted = walls.slice().sort((a, b) => b.p0 - a.p0);
+  el.innerHTML = '<table><thead><tr><th>Side</th><th>Price</th><th>Oz</th><th>x normal</th><th>Held</th></tr></thead><tbody>' + sorted.map(w =>
+    `<tr><td class="${w.side > 0 ? 'b' : 's'}">${w.side > 0 ? 'BUY wall' : 'SELL wall'}</td><td>${fmtP(w.p0)}–${fmtP(w.p1)}</td><td>${fmtV(w.qty)}</td><td>${w.mult.toFixed(1)}x</td><td>${w.age >= 120 ? Math.round(w.age / 60) + ' min' : w.age + ' s'}</td></tr>`).join('') + '</tbody></table>';
+}
 function renderTape() {
+  renderWallList();
   if (S.tab !== 'tape') return;
   const now = Date.now() / 1000;
   const sums = [[60, 0, 0], [300, 0, 0], [900, 0, 0], [3600, 0, 0]];
@@ -844,7 +921,7 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sBack: 'backfill'};
+const F = {sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
   $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
