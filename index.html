@@ -56,8 +56,10 @@ main{position:relative;flex:1;min-height:0}
 :is(#hmPanel,#vaPanel) .pb button{flex:1;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-weight:600}
 :is(#hmPanel,#vaPanel) .pb button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .vadd{display:grid;grid-template-columns:1fr 1fr;gap:6px}.vadd button{padding:8px 6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-weight:600;font-size:12px;cursor:pointer}.vadd .wide{grid-column:1/3;color:var(--acc)}
-.vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px}.vrow i{flex:none;width:10px;height:10px;border-radius:50%}.vrow span{flex:1;min-width:0}.vrow label{display:flex;align-items:center;gap:3px;color:var(--dim);white-space:nowrap}.vrow input{width:16px;height:16px}.vrow button{background:none;border:0;color:var(--dim);font-size:15px;padding:2px 4px;cursor:pointer}
+.vrow{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px}.vrow i{flex:none;width:10px;height:10px;border-radius:50%}.vrow span{flex:1;min-width:0}.vrow label{display:flex;align-items:center;gap:3px;color:var(--dim);white-space:nowrap}.vrow input{width:16px;height:16px}.vrow input[type=color]{flex:none;width:28px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:none;cursor:pointer}.vrow button{background:none;border:0;color:var(--dim);font-size:15px;padding:2px 4px;cursor:pointer}
 @media (max-width:420px){nav button{font-size:13px}}
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;padding:4px 0 10px;border-bottom:1px solid var(--line)}.cgrid label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;padding:5px 0}.cgrid input[type=color]{width:44px;height:28px;padding:0;border:1px solid var(--line);border-radius:6px;background:none;cursor:pointer}
+button.mini{background:none;border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px 10px;font-size:13px;cursor:pointer}
 #tools .st2{font-size:11px;color:var(--dim);white-space:nowrap;padding-right:4px}
 .zoom button.day{font-size:12px;font-weight:700;color:#fff;border:0;padding:0 10px;white-space:nowrap}
 .zoom button.day.up{background:var(--buy)}.zoom button.day.dn{background:var(--sell)}.zoom button.day.na{background:var(--dim)}
@@ -155,7 +157,8 @@ input[type=checkbox]{width:22px;height:22px}
 <div id="sheet" class="hidden"><div class="in">
   <h2>Settings</h2>
   <div class="row"><label>Look</label><select id="sTheme"><option value="light">Light (like TradingView)</option><option value="dark">Dark</option></select></div>
-  <div class="row"><label>Order wall colours<small>shaded zones where big orders wait</small></label><select id="sFpCol"><option value="bo">Blue buy walls / orange sell walls</option><option value="gr">Green buy walls / red sell walls</option></select></div>
+  <div class="row"><label>Colours<small>tap a colour to change it — it changes straight away</small></label><button id="sColReset" class="mini">Reset colours</button></div>
+  <div class="cgrid" id="sCols"></div>
   <div class="row"><label>Market<small>Binance perpetual futures</small></label><select id="sSym"><option value="XAUUSDT">XAUUSDT (gold)</option><option value="XAUTUSDT">XAUTUSDT (Tether gold)</option><option value="PAXGUSDT">PAXGUSDT (Pax gold)</option><option value="XAGUSDT">XAGUSDT (silver)</option></select></div>
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
   <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option><option value="1440">Daily (MT5 days)</option></select></div>
@@ -180,6 +183,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
   <div class="help">
     <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
+    <b>Colours:</b> Settings → Colours changes candles, buys/sells, strong cells, POC, value area, walls, accent, background, grid and text (Reset colours = back to normal); each value area has its own colour in Value areas ▾; the heatmap colours are under Heatmap → Style.<br>
     <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView.<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%) — lines are drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
@@ -224,8 +228,34 @@ const THEMES = {
 // order walls (waiting limit orders): blue = buy wall, orange = sell wall (Settings can switch them back to green/red)
 const WALLBO = {light: ['30,111,224', '245,124,0'], dark: ['66,165,245', '255,167,38']};
 function wallRGB(side) {
+  if (side > 0 && C.wallB) return C.wallB; if (side <= 0 && C.wallS) return C.wallS;          // own colours (Settings)
   if (S.fpCol === 'gr') return side > 0 ? C.buyRGB : C.sellRGB;
   const w = WALLBO[C.bg === THEMES.dark.bg ? 'dark' : 'light']; return side > 0 ? w[0] : w[1];
+}
+// own colours from Settings -> Colours. Chart colours apply to both looks; background / grid / text are kept per look.
+const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rgb2hex = a => '#' + a.map(x => Math.round(x).toString(16).padStart(2, '0')).join('');
+const mixA = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+const rgba = (h, a) => `rgba(${hex2rgb(h).join(',')},${a})`;
+function themeWith(tk, surfaces = true) {
+  const base = THEMES[tk], o = S.colors || {}, c = Object.assign({}, base);
+  const sf = k => surfaces ? o[k + '_' + tk] : undefined;
+  if (sf('bg')) { c.bg = c.panel = c.boxBg = sf('bg'); c.wallLbl = rgba(sf('bg'), 0.92); }
+  if (sf('txt')) c.txt = c.cellTxt = c.price = sf('txt');
+  if (sf('grid')) c.grid = sf('grid');
+  if (sf('bg') || sf('txt')) c.side = rgb2hex(mixA(hex2rgb(c.bg), hex2rgb(c.txt), 0.035));
+  if (o.up) c.up = o.up; if (o.dn) c.dn = o.dn;
+  const bgR = hex2rgb(c.bg), dk = tk === 'dark';
+  for (const sd of ['buy', 'sell']) {
+    if (o[sd]) { const r = hex2rgb(o[sd]); c[sd] = c[sd + 'Txt'] = o[sd]; c[sd + 'RGB'] = r.join(','); c[sd + 'Hi'] = r; c[sd + 'Lo'] = mixA(bgR, r, dk ? 0.22 : 0.16); }
+    else if (sf('bg')) c[sd + 'Lo'] = mixA(bgR, c[sd + 'Hi'], dk ? 0.22 : 0.16);
+    if (o[sd + 'Imb']) c[sd + 'Imb'] = o[sd + 'Imb'];
+  }
+  if (o.poc) { c.poc = o.poc; c.pocLine = rgba(o.poc, 0.9); }
+  if (o.va) { c.va = o.va; c.vaLine = rgba(o.va, 0.65); c.vaFill = rgba(o.va, 0.05); }
+  if (o.acc) c.acc = o.acc;
+  if (o.wallB) c.wallB = hex2rgb(o.wallB).join(','); if (o.wallS) c.wallS = hex2rgb(o.wallS).join(',');
+  return c;
 }
 let C = THEMES.light;
 
@@ -1146,7 +1176,10 @@ async function loadSecsHistory(minutes) {
   } catch (e) {}
 }
 function applyTheme() {
-  C = THEMES[S.theme === 'dark' ? 'dark' : 'light']; LUT = makeLUT(C.hm);
+  C = themeWith(S.theme === 'dark' ? 'dark' : 'light'); LUT = makeLUT(C.hm);
+  const o = S.colors || {}, tk = S.theme === 'dark' ? 'dark' : 'light', bs = document.body.style;     // page colours (header, tabs, tape)
+  for (const [v, val] of [['--bg', o['bg_' + tk]], ['--panel', o['bg_' + tk]], ['--txt', o['txt_' + tk]], ['--acc', o.acc], ['--buy', o.buy], ['--sell', o.sell], ['--poc', o.poc], ['--va', o.va], ['--line', o['grid_' + tk]]])
+    if (val) bs.setProperty(v, val); else bs.removeProperty(v);
   document.body.classList.toggle('light', S.theme !== 'dark');
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = C.panel;
   dirty = true;
@@ -1233,7 +1266,7 @@ function hmLayout() { const sm = small(); return {AX: 58, BW: S.cob ? (sm ? 58 :
 function hmPlotW() { const l = hmLayout(); return Math.max(50, W - l.AX - l.BW - l.SW); }
 function drawHM() {                       // drawn with the heatmap's own (dark/light) colours
   const pal = HMPAL[hmPal()], saved = C;
-  C = pal.dark ? THEMES.dark : THEMES.light;
+  C = themeWith(pal.dark ? 'dark' : 'light', false);        // heatmap keeps its own background, uses your chart colours
   try { drawHM2(hmLUT()); } finally { C = saved; }
 }
 function drawHM2(LUTh) {
@@ -1309,7 +1342,7 @@ function drawHM2(LUTh) {
     for (const c of hmCs.list) {
       const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
       if (xL > x1 || xL + w < 0) continue;
-      const col = c.c >= c.o ? C.buy : C.sell, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1, Math.abs(yc - yo));
+      const col = c.c >= c.o ? C.up : C.dn, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1, Math.abs(yc - yo));
       ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
       ctx.fillStyle = col; ctx.fillRect(Math.round(cx - bw / 2), top, bw, hg);
       if (bw >= 4) { ctx.strokeStyle = C.hmEdge; ctx.strokeRect(Math.round(cx - bw / 2) - 0.5, top - 0.5, bw + 1, hg + 1); }
@@ -1457,7 +1490,7 @@ const va = {c: new Map(), keys: null, tf: 0, step: 0.5, until: 0, lastA: -1, rea
 const vaV = {cw: 9, ppd: 4, auto: true, follow: true, center: 0, off: 0};
 let vaPick = null;                          // custom range: {stage: 1} -> {stage: 2, a: candle time}
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
-const vaCol = p => VA_COLS[(p.id - 1) % VA_COLS.length];
+const vaCol = p => p.col || VA_COLS[(p.id - 1) % VA_COLS.length];
 function vaKey(T, tf = va.tf) { const m = tf * 60000; if (tf <= 60) return T - T % m; const o = mt5Off(T); return Math.floor((T + o) / m) * m - o; }
 function vaKeys() { if (!va.keys) va.keys = [...va.c.keys()].filter(t => tradingDay(mt5Day(t))).sort((a, b) => a - b); return va.keys; }   // no weekend candles, like MT5
 const vaNew = (t, p) => ({t, o: p, h: p, l: p, c: p, s: 0, b: 0, cells: new Map()});
@@ -1669,9 +1702,10 @@ function vaPickTap(x) {
 function vaPanelSync() {
   $('#vaDeltaC').checked = !!S.vaDelta; $('#vaNumC').checked = !!S.vaNum;
   const now = Date.now();
-  $('#vaList').innerHTML = S.vaProfs.length ? S.vaProfs.map(p => `<div class="vrow"><i style="background:${vaCol(p)}"></i><span>${vaName(p, now)}</span><label><input type="checkbox" data-ext="${p.id}"${p.ext ? ' checked' : ''}> extend</label><button data-del="${p.id}" aria-label="Remove">✕</button></div>`).join('')
+  $('#vaList').innerHTML = S.vaProfs.length ? S.vaProfs.map(p => `<div class="vrow"><input type="color" data-col="${p.id}" value="${vaCol(p)}" aria-label="Colour"><span>${vaName(p, now)}</span><label><input type="checkbox" data-ext="${p.id}"${p.ext ? ' checked' : ''}> extend</label><button data-del="${p.id}" aria-label="Remove">✕</button></div>`).join('')
     : '<div class="d" style="font-size:12px;padding:4px 0">None yet — add one above.</div>';
   document.querySelectorAll('#vaList [data-ext]').forEach(el => el.onchange = () => { const p = S.vaProfs.find(q => q.id === +el.dataset.ext); if (p) { p.ext = el.checked ? 1 : 0; saveS(); dirty = true; } });
+  document.querySelectorAll('#vaList [data-col]').forEach(el => el.addEventListener('input', () => { const p = S.vaProfs.find(q => q.id === +el.dataset.col); if (p) { p.col = el.value; saveS(); dirty = true; } }));
   document.querySelectorAll('#vaList [data-del]').forEach(el => el.onclick = () => { S.vaProfs = S.vaProfs.filter(q => q.id !== +el.dataset.del); saveS(); vaPanelSync(); dirty = true; });
 }
 document.querySelectorAll('#vaPanel [data-add]').forEach(b => b.onclick = () => {
@@ -1865,13 +1899,26 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sTheme: 'theme', sFpCol: 'fpCol', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
+const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
+  colsSync();
   $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
   $('#sNow').textContent = lastPrice ? `(Binance now ${lastPrice.toFixed(2)})` : '';
   $('#sheet').classList.remove('hidden');
 };
+const COLS = [['up', 'Candle up'], ['dn', 'Candle down'], ['buy', 'Buys · + delta'], ['sell', 'Sells · − delta'], ['buyImb', 'Strong buy cell'], ['sellImb', 'Strong sell cell'],
+  ['poc', 'POC line'], ['va', 'Value area lines'], ['wallB', 'Buy walls'], ['wallS', 'Sell walls'], ['acc', 'Accent · CVD line'], ['bg', 'Background', 1], ['grid', 'Grid lines', 1], ['txt', 'Text', 1]];
+function colNow(k) {                          // the colour in use now, as #rrggbb for the picker
+  if (k === 'wallB' || k === 'wallS') return rgb2hex(wallRGB(k === 'wallB' ? 1 : -1).split(',').map(Number));
+  const v = C[k]; return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : '#888888';
+}
+function colsSync() {
+  const tk = S.theme === 'dark' ? 'dark' : 'light';
+  $('#sCols').innerHTML = COLS.map(([k, name, surf]) => `<label>${name}<input type="color" data-ck="${surf ? k + '_' + tk : k}" value="${colNow(k)}"></label>`).join('');
+  document.querySelectorAll('#sCols input').forEach(el => el.addEventListener('input', () => { S.colors = Object.assign({}, S.colors, {[el.dataset.ck]: el.value}); saveS(); applyTheme(); dirty = true; }));
+}
+$('#sColReset').onclick = () => { S.colors = {}; saveS(); applyTheme(); colsSync(); dirty = true; };
 $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
