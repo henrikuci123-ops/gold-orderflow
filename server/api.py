@@ -299,7 +299,8 @@ def secs_history(minutes):
 def warm_up():
     time.sleep(20)
     now = int(time.time() * 1000)
-    for tf, step, days in ((60, 5, 90), (60, 2, 30), (60, 1, 10), (5, 0.5, 1), (15, 0.5, 3), (30, 0.5, 5)):
+    # footprint + Value Area tab (5m 3 days, 15m 10 days, 30m 14 days, 1h 30 days, 4h = 1h pieces at $2 30 days)
+    for tf, step, days in ((60, 5, 90), (60, 2, 30), (60, 1, 30), (5, 0.5, 3), (15, 0.5, 10), (30, 0.5, 14)):
         try:
             with _fp_lock:
                 fp_candles(tf, step, now - days * 86400000, now, now)
