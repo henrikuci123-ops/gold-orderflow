@@ -146,6 +146,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
   <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option><option value="1440">Daily (MT5 days)</option></select></div>
   <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option><option value="10">$10</option><option value="20">$20</option></select></div>
+  <div class="row"><label>Bigger rows when zoomed out<small>merges rows into round $ steps so the numbers stay readable</small></label><select id="sAutoRows"><option value="1">Automatic</option><option value="0">Off</option></select></div>
   <div class="row"><label>Heatmap row size</label><select id="sHstep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option></select></div>
   <div class="row"><label>Imbalance<small>buyers vs sellers one row apart</small></label><select id="sImb"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
   <div class="row"><label>Absorption strength<small>selling/buying at the low/high vs a normal row</small></label><select id="sAbs"><option value="2">2x</option><option value="2.5">2.5x</option><option value="3">3x</option><option value="4">4x</option></select></div>
@@ -168,7 +169,7 @@ input[type=checkbox]{width:22px;height:22px}
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
-    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. Double-tap the price scale to reset. LIVE = follow the price.
+    Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. When you zoom out, rows are merged into bigger round $ rows (e.g. $0.50 → $2.50, shown as "rows $2.5 auto" at the top) so the numbers stay readable; zoom in for the fine rows again (Settings → Bigger rows when zoomed out). Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
 <script>
@@ -180,7 +181,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -889,6 +890,34 @@ function priceAxis(x0, yOf, top, bot, stepPx, stepP) {
   ctx.textBaseline = 'alphabetic';
 }
 
+// auto row size (like ATAS/Bookmap): when the candles are squeezed, rows are merged into a bigger round $ size
+// so every row stays tall enough for its numbers. The data keeps the fine rows - zooming back in shows them again.
+const NICE_ROWS = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 4, 5, 10, 20, 25, 40, 50, 100, 200, 250, 500, 1000];
+const MIN_ROW_PX = 14;
+let fpDstep = 0;
+function rowMerge(rowH, minPx = MIN_ROW_PX) {   // how many rows of S.step make one drawn row
+  if (!S.autoRows || rowH >= minPx) return 1;
+  const st = S.step;
+  for (const d of NICE_ROWS) {
+    const k = Math.round(d / st);
+    if (k < 1 || Math.abs(k * st - d) > 1e-7) continue;
+    if (k * rowH >= minPx) return k;
+  }
+  return Math.max(1, Math.ceil(minPx / rowH));
+}
+function mergeRows(map, k) {
+  if (k === 1) return map;
+  const out = new Map();
+  for (const [r, v] of map) { const R = Math.floor(r / k); let o = out.get(R); if (!o) { o = [0, 0]; out.set(R, o); } o[0] += v[0]; o[1] += v[1]; }
+  return out;
+}
+function cellsOf(c, k) {                    // finished candles keep their merged rows (the live one is merged every frame)
+  if (k === 1) return c.cells;
+  if (c.done && c._mk === k && c._mn === c.cells.size) return c._m;
+  const m = mergeRows(c.cells, k);
+  if (c.done) { c._mk = k; c._mn = c.cells.size; c._m = m; }
+  return m;
+}
 function drawFP() {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   const ks = S.tf >= 1440 ? sortedKeys().filter(tradingDay) : sortedKeys();
@@ -896,6 +925,8 @@ function drawFP() {
   const AX = 58, VPW = small() ? 62 : 110, BOT = 76;
   const x1 = W - AX - VPW, plotH = H - BOT, midY = plotH / 2, step = S.step;
   const rowH = fpV.rowH, colW = fpV.colW;
+  const mk = rowMerge(rowH), dstep = +(step * mk).toFixed(4), drowH = rowH * mk;     // drawn rows (merged when zoomed out)
+  if (dstep !== fpDstep) { fpDstep = dstep; renderTools(); }
   if (fpV.follow) { fpV.off = 0; if (lastPrice) fpV.center = lastPrice; }
   if (!fpV.center) fpV.center = lastPrice || candles.get(ks[ks.length - 1]).c;
   const yOf = p => midY - (p - fpV.center) / step * rowH;
@@ -906,10 +937,10 @@ function drawFP() {
   const vis = [];
   for (let j = 0; j < nVis; j++) { const i = last - j; if (i < 0) break; if (i < ks.length) vis.push({c: candles.get(ks[i]), x: x1 - RM - (j + 1) * colW}); }
   let maxCell = 1;
-  for (const {c} of vis) for (const v of c.cells.values()) { if (v[0] > maxCell) maxCell = v[0]; if (v[1] > maxCell) maxCell = v[1]; }
+  for (const {c} of vis) if (!c.lite) for (const v of cellsOf(c, mk).values()) { if (v[0] > maxCell) maxCell = v[0]; if (v[1] > maxCell) maxCell = v[1]; }
   const va = calcVA(prof);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
-  gridH(yOf, 0, x1, 0, plotH, rowH, step);
+  gridH(yOf, 0, x1, 0, plotH, drowH, dstep);
   const kEvery = Math.max(1, Math.ceil(70 / colW));
   gridV(vis.filter(v => Math.round((v.c.t / 60000) / S.tf) % kEvery === 0).map(v => v.x + colW / 2), 0, plotH);
   if (va) {
@@ -917,7 +948,7 @@ function drawFP() {
     const yA = yOf((va.vah + 1) * step), yB = yOf(va.val * step); ctx.fillRect(0, yA, x1, yB - yA);
   }
   drawWalls(yOf, x1, plotH, 'zone');
-  for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, rowH, maxCell, plotH);
+  for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, drowH, maxCell, plotH, mk);
   if (va) {
     ctx.setLineDash([5, 4]); ctx.strokeStyle = C.vaLine;
     for (const p of [(va.vah + 1) * step, va.val * step]) { const y = Math.round(yOf(p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); }
@@ -926,8 +957,9 @@ function drawFP() {
   drawWalls(yOf, x1, plotH, 'label');
   lastLine(yOf, x1, plotH);
   ctx.restore();
-  drawProfile(x1, VPW, yOf, rowH, plotH, va);
-  priceAxis(W - AX, yOf, 0, plotH, rowH, step);
+  const pk = rowMerge(rowH, 3);                     // the profile has no numbers: it keeps fine rows down to 3 px
+  drawProfile(x1, VPW, yOf, rowH * pk, plotH, va, pk);
+  priceAxis(W - AX, yOf, 0, plotH, drowH, dstep);
   // bottom panel: time, delta, volume, CVD
   ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, W, BOT);
   ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
@@ -953,12 +985,12 @@ function drawFP() {
     ctx.strokeStyle = C.acc; ctx.lineWidth = 1.5; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); ctx.lineWidth = 1;
   }
   ctx.fillStyle = C.dim; ctx.fillText('CVD ' + (sessBuy - sessSell >= 0 ? '+' : '-') + fmtQ(Math.abs(sessBuy - sessSell)), W - AX + 4, plotH + 26);
-  ctx.fillText(tfLabel() + ' · $' + S.step, W - AX + 4, plotH + 12);
-  geo = {kind: 'fp', x1, plotH, yOf, vis, colW, axX: W - AX};
+  ctx.fillText(tfLabel() + ' · $' + dstep, W - AX + 4, plotH + 12);
+  geo = {kind: 'fp', x1, plotH, yOf, vis, colW, axX: W - AX, mk, dstep};
   drawXH();
 }
-function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
-  const step = S.step, up = c.c >= c.o, col = up ? C.buy : C.sell;
+function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH, mk = 1) {
+  const bstep = S.step, step = bstep * mk, up = c.c >= c.o, col = up ? C.buy : C.sell;   // rowH / step = the drawn (maybe merged) rows
   if (isNaN(c.o)) return;
   if (c.lite || !c.cells.size) {
     const cx = x + cw / 2, bw = Math.max(4, Math.min(cw * 0.35, 18));
@@ -973,8 +1005,9 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   const xS = Math.round(x + gap / 2), xBody = xS + cellW + pad, xB = xBody + bodyW + pad, cxb = xBody + bodyW / 2;
   ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(cxb) + 0.5, yOf(c.h)); ctx.lineTo(Math.round(cxb) + 0.5, yOf(c.l)); ctx.stroke();
   const yo = yOf(c.o), yc = yOf(c.c); ctx.fillStyle = col; ctx.fillRect(xBody + 1, Math.min(yo, yc), bodyW - 2, Math.max(1, Math.abs(yc - yo)));
+  const cells = cellsOf(c, mk);
   let pocR = null, pv = -1, lo = Infinity;
-  for (const [r, v] of c.cells) { const t = v[0] + v[1]; if (t > pv) { pv = t; pocR = r; } if (r < lo) lo = r; }
+  for (const [r, v] of cells) { const t = v[0] + v[1]; if (t > pv) { pv = t; pocR = r; } if (r < lo) lo = r; }
   const showText = rowH >= 10 && cellW >= 20;
   const fs = Math.max(8, Math.min(12, Math.floor(rowH - 4), Math.floor(cellW / 3.3)));
   const mono = `${fs}px ui-monospace,Menlo,monospace`, monoB = `bold ${fs}px ui-monospace,Menlo,monospace`;
@@ -982,10 +1015,10 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   const mixc = (a, b, t) => `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`;
   const lvl = v => Math.sqrt(Math.min(1, v / mx));
   const txtOn = (t, strong) => strong || t > 0.6 || S.theme === 'dark' ? '#ffffff' : C.cellTxt;
-  for (const [r, v] of c.cells) {
+  for (const [r, v] of cells) {
     const yTop = yOf((r + 1) * step);
     if (yTop > plotH || yTop + rowH < 0) continue;
-    const below = c.cells.get(r - 1), above = c.cells.get(r + 1), poc = r === pocR;
+    const below = cells.get(r - 1), above = cells.get(r + 1), poc = r === pocR;
     const bi = v[1] >= MINIMB && v[1] >= S.imb * Math.max(below ? below[0] : 0, 0.01);     // buyers vs sellers one row lower
     const si = v[0] >= MINIMB && v[0] >= S.imb * Math.max(above ? above[1] : 0, 0.01);     // sellers vs buyers one row higher
     const h = Math.max(1, rowH - 1), y = yTop + 0.5;
@@ -1000,7 +1033,7 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   }
   const sg = c.sig;
   for (const st of (sg && sg.stacked) || []) {          // 3+ stacked imbalances: bar on the outer edge
-    const yA = yOf((st.to + 1) * step), yB = yOf(st.from * step);
+    const yA = yOf((st.to + 1) * bstep), yB = yOf(st.from * bstep);
     ctx.fillStyle = st.side > 0 ? C.buyImb : C.sellImb;
     ctx.fillRect(st.side > 0 ? xB + cellW - 3 : xS, yA, 3, yB - yA);
   }
@@ -1027,21 +1060,22 @@ function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH) {
   ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 function tri(x, y, dir, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + dir * 10); ctx.lineTo(x + 6, y + dir * 10); ctx.closePath(); ctx.fill(); }
-function drawProfile(x0, w, yOf, rowH, plotH, va) {
+function drawProfile(x0, w, yOf, rowH, plotH, va, mk = 1) {
   ctx.fillStyle = C.side; ctx.fillRect(x0, 0, w, plotH);
   ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(x0 + 0.5, 0); ctx.lineTo(x0 + 0.5, plotH); ctx.stroke();
   if (!va) return;
-  const step = S.step;
-  for (const [r, v] of prof) {
-    const yTop = yOf((r + 1) * step); if (yTop > plotH || yTop + rowH < 0) continue;
-    const tot = v[0] + v[1], len = (w - 6) * tot / va.max, inVA = r >= va.val && r <= va.vah;
+  const step = S.step, dst = step * mk, rows = mergeRows(prof, mk), pocR = Math.floor(va.poc / mk);
+  let mx = 0; for (const v of rows.values()) mx = Math.max(mx, v[0] + v[1]);
+  for (const [r, v] of rows) {
+    const yTop = yOf((r + 1) * dst); if (yTop > plotH || yTop + rowH < 0) continue;
+    const tot = v[0] + v[1], len = (w - 6) * tot / (mx || 1), inVA = (r + 1) * mk - 1 >= va.val && r * mk <= va.vah;
     const lb = len * v[1] / (tot || 1);
     const h = Math.max(1, rowH - 1);
     ctx.globalAlpha = inVA ? 0.85 : 0.4;
     ctx.fillStyle = C.buy; ctx.fillRect(x0 + w - 3 - len, yTop + 0.5, lb, h);
     ctx.fillStyle = C.sell; ctx.fillRect(x0 + w - 3 - len + lb, yTop + 0.5, len - lb, h);
     ctx.globalAlpha = 1;
-    if (r === va.poc) { ctx.strokeStyle = C.poc; ctx.strokeRect(x0 + w - 3 - len + 0.5, yTop + 0.5, len, h); }
+    if (r === pocR) { ctx.strokeStyle = C.poc; ctx.strokeRect(x0 + w - 3 - len + 0.5, yTop + 0.5, len, h); }
   }
   ctx.fillStyle = C.dim; ctx.font = '10px -apple-system,sans-serif';
   ctx.fillText('today', x0 + 4, 12);
@@ -1118,10 +1152,10 @@ function drawXH() {
     const hit = g.vis.find(v => x >= v.x && x < v.x + g.colW), c = hit && hit.c;
     if (c && !isNaN(c.o)) {
       tLabel = S.tf >= 1440 ? tFmtDay.format(c.t + 43200000) : tFmtX.format(c.t);
-      const d = c.buy - c.sell, cell = c.cells.get(rowOf(price));
+      const mk = g.mk || 1, R = Math.floor(rowOf(price) / mk), d = c.buy - c.sell, cell = c.lite ? null : cellsOf(c, mk).get(R);
       lines = [tLabel, `O ${fmtP(c.o)}   H ${fmtP(c.h)}`, `L ${fmtP(c.l)}   C ${fmtP(c.c)}`,
         `Delta ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}   Vol ${fmtQ(c.buy + c.sell)} ${UNIT()}`, `Buys ${fmtQ(c.buy)}   Sells ${fmtQ(c.sell)}`];
-      if (cell) lines.push(`At ${fmtP(Math.floor(price / S.step) * S.step)}: sells ${fmtQ(cell[0])} × buys ${fmtQ(cell[1])}`);
+      if (cell) lines.push(`At ${fmtP(R * S.step * mk)}: sells ${fmtQ(cell[0])} × buys ${fmtQ(cell[1])}`);
       lines.push(`Range ${(c.h - c.l).toFixed(2)}   Price ${fmtP(price)}`);
       tLabel = S.tf >= 1440 ? tLabel : tFmt.format(c.t);
     }
@@ -1405,7 +1439,7 @@ cv.addEventListener('pointermove', e => {
   if (e.pointerType === 'mouse' && !e.buttons) cv.style.cursor = {y: 'ns-resize', x: 'ew-resize', pan: 'crosshair'}[zoneOf(e)];
   if (ptrs.size === 1 && p.mode !== 'pan') {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
-    if (p.mode === 'y') { const f = Math.exp(-dy / 120); if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
+    if (p.mode === 'y') { const f = Math.exp(-dy / 120); if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 0.3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
     else { const f = Math.exp(dx / 150); if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 30, 300); else hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
     dirty = true;
   } else if (ptrs.size === 1) {
@@ -1422,7 +1456,7 @@ cv.addEventListener('pointermove', e => {
   p.x = e.clientX; p.y = e.clientY;
   if (ptrs.size === 2 && pinch0) {
     const ps = pinchState(), sx = ps.dx / pinch0.dx, sy = ps.dy / pinch0.dy;
-    if (S.tab === 'fp') { fpV.colW = clamp(pinch0.colW * sx, 40, 260); fpV.rowH = clamp(pinch0.rowH * sy, 4, 40); }
+    if (S.tab === 'fp') { fpV.colW = clamp(pinch0.colW * sx, 40, 260); fpV.rowH = clamp(pinch0.rowH * sy, 0.3, 60); }
     else { hmV.pps = clamp(pinch0.pps * sx, 0.05, 12); hmV.dpp = clamp(pinch0.dpp / sy, 0.002, 1); }
     dirty = true;
   }
@@ -1447,7 +1481,7 @@ cv.addEventListener('wheel', e => {
   e.preventDefault();
   const f = e.deltaY > 0 ? 1 / 1.12 : 1.12;
   if (e.shiftKey) { if (S.tab === 'fp') fpV.colW = clamp(fpV.colW * f, 40, 260); else hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
-  else { if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 4, 40); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
+  else { if (S.tab === 'fp') fpV.rowH = clamp(fpV.rowH * f, 0.3, 60); else hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); }
   dirty = true;
 }, {passive: false});
 cv.addEventListener('dblclick', e => {
@@ -1455,7 +1489,7 @@ cv.addEventListener('dblclick', e => {
   fpV.follow = hmV.follow = true; dirty = true;
 });
 function zoom(f) {
-  if (S.tab === 'fp') { fpV.rowH = clamp(fpV.rowH * f, 4, 40); fpV.colW = clamp(fpV.colW * f, 40, 260); }
+  if (S.tab === 'fp') { fpV.rowH = clamp(fpV.rowH * f, 0.3, 60); fpV.colW = clamp(fpV.colW * f, 40, 260); }
   else { hmV.dpp = clamp(hmV.dpp / f, 0.002, 1); hmV.pps = clamp(hmV.pps * f, 0.05, 12); }
   dirty = true;
 }
@@ -1487,7 +1521,7 @@ function renderTools() {
   document.querySelectorAll('#tfHm button[data-hmm]').forEach(b => b.classList.toggle('on', b.dataset.hmm === (S.hmm || 'candles')));
   const span = hmPlotW() / hmV.pps / 60;
   document.querySelectorAll('#tfHm button[data-span]').forEach(b => b.classList.toggle('on', Math.abs(span / +b.dataset.span - 1) < 0.12));
-  $('#tStep').textContent = `rows $${S.tab === 'hm' ? S.hstep : S.step}`;
+  $('#tStep').textContent = S.tab === 'hm' ? `rows $${S.hstep}` : fpDstep > S.step + 1e-9 ? `rows $${fpDstep} auto` : `rows $${S.step}`;
 }
 document.querySelectorAll('#tfFp button').forEach(b => b.onclick = () => setTf(+b.dataset.tf));
 document.querySelectorAll('#tfHm button[data-hmm]').forEach(b => b.onclick = () => { S.hmm = b.dataset.hmm; saveS(); renderTools(); dirty = true; });
@@ -1540,7 +1574,7 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
+const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
   $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
