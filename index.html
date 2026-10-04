@@ -142,6 +142,7 @@ input[type=checkbox]{width:22px;height:22px}
 <div id="sheet" class="hidden"><div class="in">
   <h2>Settings</h2>
   <div class="row"><label>Look</label><select id="sTheme"><option value="light">Light (like TradingView)</option><option value="dark">Dark</option></select></div>
+  <div class="row"><label>Buy / sell colours<small>footprint cells, totals, profile, walls (candles stay green/red)</small></label><select id="sFpCol"><option value="bo">Blue buys / orange sells</option><option value="gr">Green buys / red sells</option></select></div>
   <div class="row"><label>Market<small>Binance perpetual futures</small></label><select id="sSym"><option value="XAUUSDT">XAUUSDT (gold)</option><option value="XAUTUSDT">XAUTUSDT (Tether gold)</option><option value="PAXGUSDT">PAXGUSDT (Pax gold)</option><option value="XAGUSDT">XAGUSDT (silver)</option></select></div>
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
   <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option><option value="1440">Daily (MT5 days)</option></select></div>
@@ -165,8 +166,8 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
   <div class="help">
-    <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
-    <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%).<br>
+    <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong orange/blue cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
+    <b>Right panel:</b> today's volume profile (Tirana day): purple line = fair price (POC), dashed = value area (70%) — both drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (green) or sell (red) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
     Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. When you zoom out, rows are merged into bigger round $ rows (e.g. $0.50 → $2.50, shown as "rows $2.5 auto" at the top) so the numbers stay readable; zoom in for the fine rows again (Settings → Bigger rows when zoomed out). Double-tap the price scale to reset. LIVE = follow the price.
@@ -181,7 +182,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', fpCol: 'bo', autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -191,20 +192,27 @@ const MAXCALLS = 60;         // max REST calls for the trade history
 const FPH = {1: 6, 2: 12, 3: 12, 5: 24, 15: 72, 30: 120, 60: 240, 240: 720, 1440: 2160};
 const STEPDEF = {1: 0.25, 2: 0.25, 3: 0.25, 5: 0.5, 15: 0.5, 30: 0.5, 60: 1, 240: 2, 1440: 5};   // row size per candle size (until changed)   // hours of footprint history per candle size (from the server)
 const THEMES = {
-  light: {bg: '#ffffff', grid: '#f0f3fa', line: '#e0e3eb', txt: '#131722', dim: '#787b86', buy: '#089981', sell: '#f23645', poc: '#f7a600', va: '#2962ff', acc: '#2962ff',
+  light: {bg: '#ffffff', grid: '#f0f3fa', line: '#e0e3eb', txt: '#131722', dim: '#787b86', up: '#089981', dn: '#f23645', buy: '#089981', sell: '#f23645', poc: '#f7a600', va: '#2962ff', acc: '#2962ff',
     panel: '#ffffff', side: '#f8f9fd', buyRGB: '8,153,129', sellRGB: '242,54,69',
     sellLo: [253, 228, 228], sellHi: [235, 77, 74], buyLo: [215, 243, 235], buyHi: [38, 166, 154], sellImb: '#c62828', buyImb: '#00796b', pocCell: '#9598a1',
     cellTxt: '#131722', boxBg: '#ffffff', boxLine: '#d1d4dc', sellTxt: '#f23645', buyTxt: '#089981',
     hmEdge: 'rgba(19,23,34,.9)', wallLbl: 'rgba(255,255,255,.94)', price: '#131722', dotB: 'rgba(8,153,129,.65)', dotS: 'rgba(242,54,69,.65)',
     vaFill: 'rgba(41,98,255,0.04)', vaLine: 'rgba(41,98,255,.65)', pocLine: 'rgba(247,166,0,.9)',
     hm: [[0, [255, 255, 255]], [0.12, [225, 236, 255]], [0.35, [130, 175, 255]], [0.6, [35, 95, 220]], [0.82, [250, 160, 35]], [1, [205, 25, 35]]]},
-  dark: {bg: '#0b0e14', grid: '#161c28', line: '#1f2635', txt: '#c9d1d9', dim: '#7d8590', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341',
+  dark: {bg: '#0b0e14', grid: '#161c28', line: '#1f2635', txt: '#c9d1d9', dim: '#7d8590', up: '#26a69a', dn: '#ef5350', buy: '#26a69a', sell: '#ef5350', poc: '#facc15', va: '#3b82f6', acc: '#e3b341',
     panel: '#10141d', side: '#0d1119', buyRGB: '38,166,154', sellRGB: '239,83,80',
     sellLo: [52, 26, 30], sellHi: [214, 76, 74], buyLo: [16, 44, 44], buyHi: [32, 150, 138], sellImb: '#c62828', buyImb: '#0f8a6c', pocCell: '#5d6675',
     cellTxt: '#f2f5f8', boxBg: '#161b22', boxLine: '#30363d', sellTxt: '#ff8a80', buyTxt: '#5ee6c0',
     hmEdge: 'rgba(255,255,255,.9)', wallLbl: 'rgba(11,14,20,.88)', price: 'rgba(255,255,255,.9)', dotB: 'rgba(38,200,170,.75)', dotS: 'rgba(255,90,90,.75)',
     vaFill: 'rgba(59,130,246,0.05)', vaLine: 'rgba(59,130,246,.75)', pocLine: 'rgba(250,204,21,.8)',
     hm: [[0, [11, 14, 20]], [0.15, [16, 40, 90]], [0.4, [20, 120, 170]], [0.65, [60, 200, 160]], [0.85, [240, 220, 70]], [1, [255, 255, 255]]]}
+};
+// footprint volume colours 'blue buys / orange sells' (POC purple and value area blue-grey so they don't mix with them)
+const VOLBO = {
+  light: {buy: '#1e6fe0', sell: '#f57c00', buyRGB: '30,111,224', sellRGB: '245,124,0', buyLo: [226, 238, 253], buyHi: [66, 133, 244], sellLo: [255, 239, 222], sellHi: [251, 163, 75],
+    buyImb: '#0d47a1', sellImb: '#ef6c00', buyTxt: '#1565c0', sellTxt: '#ef6c00', poc: '#8e24aa', pocLine: 'rgba(142,36,170,.85)', va: '#607d8b', vaLine: 'rgba(96,125,139,.7)', vaFill: 'rgba(96,125,139,0.05)'},
+  dark: {buy: '#42a5f5', sell: '#ffa726', buyRGB: '66,165,245', sellRGB: '255,167,38', buyLo: [16, 34, 60], buyHi: [40, 118, 210], sellLo: [58, 38, 16], sellHi: [226, 128, 28],
+    buyImb: '#1565c0', sellImb: '#e65100', buyTxt: '#64b5f6', sellTxt: '#ffb74d', poc: '#ce93d8', pocLine: 'rgba(206,147,216,.85)', va: '#90a4ae', vaLine: 'rgba(144,164,174,.75)', vaFill: 'rgba(144,164,174,0.06)'}
 };
 let C = THEMES.light;
 
@@ -870,7 +878,7 @@ function gridH(yOf, x0, x1, top, bot, stepPx, stepP) {
   ctx.stroke();
 }
 function gridV(xs, top, bot) { ctx.strokeStyle = C.grid; ctx.lineWidth = 1; ctx.beginPath(); for (const x of xs) { const xx = Math.round(x) + 0.5; ctx.moveTo(xx, top); ctx.lineTo(xx, bot); } ctx.stroke(); }
-function lastCol() { const ks = sortedKeys(); const c = ks.length ? candles.get(ks[ks.length - 1]) : null; return c && !isNaN(c.o) && lastPrice < c.o ? C.sell : C.buy; }
+function lastCol() { const ks = sortedKeys(); const c = ks.length ? candles.get(ks[ks.length - 1]) : null; return c && !isNaN(c.o) && lastPrice < c.o ? C.dn : C.up; }
 function lastLine(yOf, x1, plotH) {           // dotted line at the last price, like TradingView
   if (!lastPrice) return; const y = Math.round(yOf(lastPrice)) + 0.5; if (y < 0 || y > plotH) return;
   ctx.strokeStyle = lastCol(); ctx.setLineDash([1, 3]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
@@ -948,14 +956,14 @@ function drawFP() {
     const yA = yOf((va.vah + 1) * step), yB = yOf(va.val * step); ctx.fillRect(0, yA, x1, yB - yA);
   }
   drawWalls(yOf, x1, plotH, 'zone');
-  for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, drowH, maxCell, plotH, mk);
-  if (va) {
+  if (va) {                                        // value area + POC lines first: the cells and boxes are drawn over them
     ctx.setLineDash([5, 4]); ctx.strokeStyle = C.vaLine;
     for (const p of [(va.vah + 1) * step, va.val * step]) { const y = Math.round(yOf(p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); }
-    ctx.setLineDash([]); ctx.strokeStyle = C.pocLine; const y = Math.round(yOf((va.poc + 0.5) * step)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke();
+    ctx.setLineDash([]); ctx.strokeStyle = C.pocLine; ctx.lineWidth = 1.5; const y = Math.round(yOf((va.poc + 0.5) * step)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.lineWidth = 1;
   }
-  drawWalls(yOf, x1, plotH, 'label');
   lastLine(yOf, x1, plotH);
+  for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, drowH, maxCell, plotH, mk);
+  drawWalls(yOf, x1, plotH, 'label');
   ctx.restore();
   const pk = rowMerge(rowH, 3);                     // the profile has no numbers: it keeps fine rows down to 3 px
   drawProfile(x1, VPW, yOf, rowH * pk, plotH, va, pk);
@@ -990,7 +998,7 @@ function drawFP() {
   drawXH();
 }
 function drawCandleFP(c, x, cw, yOf, rowH, mx, plotH, mk = 1) {
-  const bstep = S.step, step = bstep * mk, up = c.c >= c.o, col = up ? C.buy : C.sell;   // rowH / step = the drawn (maybe merged) rows
+  const bstep = S.step, step = bstep * mk, up = c.c >= c.o, col = up ? C.up : C.dn;   // rowH / step = the drawn (maybe merged) rows
   if (isNaN(c.o)) return;
   if (c.lite || !c.cells.size) {
     const cx = x + cw / 2, bw = Math.max(4, Math.min(cw * 0.35, 18));
@@ -1123,7 +1131,8 @@ async function loadSecsHistory(minutes) {
   } catch (e) {}
 }
 function applyTheme() {
-  C = THEMES[S.theme === 'dark' ? 'dark' : 'light']; LUT = makeLUT(C.hm);
+  const tk = S.theme === 'dark' ? 'dark' : 'light';
+  C = S.fpCol === 'gr' ? THEMES[tk] : Object.assign({}, THEMES[tk], VOLBO[tk]); LUT = makeLUT(C.hm);
   document.body.classList.toggle('light', S.theme !== 'dark');
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = C.panel;
   dirty = true;
@@ -1574,7 +1583,7 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
+const F = {sTheme: 'theme', sFpCol: 'fpCol', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
   $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
@@ -1585,9 +1594,9 @@ $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
   const old = Object.assign({}, S);
-  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit' || k === 'theme') ? v : (parseFloat(v) || 0); }
+  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit' || k === 'theme' || k === 'fpCol') ? v : (parseFloat(v) || 0); }
   S.stepTf = S.stepTf || {}; S.stepTf[S.tf] = S.step;
-  if (S.theme !== old.theme) applyTheme();
+  if (S.theme !== old.theme || S.fpCol !== old.fpCol) applyTheme();
   renderTools();
   S.sound = $('#sSnd').checked;
   const mt5 = parseFloat($('#sMt5').value);
