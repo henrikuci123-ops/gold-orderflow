@@ -1617,7 +1617,7 @@ function vaMergeK(st, rowPx, minPx) {        // merge price rows into round $ st
   return Math.ceil(minPx / rowPx);
 }
 function haloText(t, x, y, col) { ctx.lineWidth = 3; ctx.strokeStyle = C.bg; ctx.strokeText(t, x, y); ctx.fillStyle = col; ctx.fillText(t, x, y); ctx.lineWidth = 1; }
-function drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now) {
+function drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now, liveRM = 0) {
   const st = va.step, v = pr.v, col = vaCol(p), rgb = hexRgb(col), cw = vaV.cw;
   const xa = X(pr.i0), xb = X(pr.i1) + cw, xr = p.ext ? x1 : xb;
   if (xr < 0 || xa > x1) return;
@@ -1632,8 +1632,9 @@ function drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now) {
   let mx = 0, md = 0;
   for (const e of rows.values()) { mx = Math.max(mx, e[0] + e[1]); md = Math.max(md, Math.abs(e[1] - e[0])); }
   const span = Math.max(0, xb - xa), wMax = small() ? 110 : 190;
-  const wv = clamp(span * (S.vaDelta ? 0.4 : 0.6), 36, wMax), wd = clamp(span * 0.3, 30, wMax * 0.8);
-  const ax = xa < 0 && xb > 80 ? 0 : xa, dx = Math.min(xb, x1);   // keep the bars on screen when the range start is scrolled off
+  const wv = clamp(span * (S.vaDelta ? 0.4 : 0.6), 36, wMax), wd = liveRM > 0 && pr.i1 === vaKeys().length - 1 ? liveRM - 14 : clamp(span * 0.3, 30, wMax * 0.8);
+  const atEnd = liveRM > 0 && pr.i1 === vaKeys().length - 1;      // reaches the newest candle: delta goes in the free space on the right
+  const ax = xa < 0 && xb > 80 ? 0 : xa, dx = atEnd ? Math.min(xb + liveRM - 3, x1 - 3) : Math.min(xb, x1);   // keep the bars on screen when the range start is scrolled off
   const showN = S.vaNum && rh >= 13, fs = Math.max(9, Math.min(11, Math.floor(rh - 3))), pocR = Math.floor(v.poc / k);
   ctx.textBaseline = 'middle';
   for (const [R, e] of rows) {
@@ -1665,7 +1666,9 @@ function drawVA() {
   if (S.sym !== 'XAUUSDT') { msg('Value areas use the server history (XAUUSDT only)'); return; }
   if (!va.ready) { msg(va.err ? 'Value areas: ' + va.err : `Loading ${tfLabel(S.vaTf)} history for the value areas…`); return; }
   const ks = vaKeys(); if (!ks.length) { msg('No candles yet'); return; }
-  const AX = 58, BOT = 22, plotH = H - BOT, x1 = W - AX, RM = small() ? 46 : 80, cw = vaV.cw;
+  const AX = 58, BOT = 22, plotH = H - BOT, x1 = W - AX, cw = vaV.cw, now0 = Date.now(), lastT = ks[ks.length - 1];
+  const liveRM = S.vaDelta && S.vaProfs.some(p => { const [f, u] = vaRange(p, now0); return u > lastT && f <= lastT; }) ? (small() ? 78 : 130) : 0;
+  const RM = Math.max(small() ? 46 : 80, liveRM);                  // free space right of the newest candle
   if (vaV.follow) vaV.off = 0;
   const off = clamp(Math.round(vaV.off), 0, ks.length - 1), last = ks.length - 1 - off;
   const X = i => x1 - RM - (last - i + 1) * cw;                    // left edge of candle i
@@ -1684,7 +1687,7 @@ function drawVA() {
   for (let i = Math.max(1, iFirst); i <= last; i++) if (mt5Day(ks[i]) !== mt5Day(ks[i - 1])) { const x = Math.round(X(i)) + 0.5; ctx.moveTo(x, 0); ctx.lineTo(x, plotH); }
   ctx.stroke(); ctx.setLineDash([]);
   const now = Date.now(), profs = [];
-  for (const p of S.vaProfs) { const [f, u] = vaRange(p, now), pr = vaProfile(f, u); if (pr) { profs.push({p, pr}); drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now); } }
+  for (const p of S.vaProfs) { const [f, u] = vaRange(p, now), pr = vaProfile(f, u); if (pr) { profs.push({p, pr}); drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now, liveRM); } }
   for (let i = iFirst; i <= last; i++) {                            // candles on top
     const c = va.c.get(ks[i]), x = X(i), col = c.c >= c.o ? C.up : C.dn, cx = Math.round(x + cw / 2) + 0.5;
     ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
