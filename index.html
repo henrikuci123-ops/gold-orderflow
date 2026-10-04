@@ -35,6 +35,7 @@ main{position:relative;flex:1;min-height:0}
 .zoom{position:absolute;left:8px;top:8px;display:flex;gap:6px;z-index:2}
 .zoom button{background:rgba(18,23,34,.92);border:1px solid var(--line);color:var(--txt);border-radius:8px;min-width:38px;height:34px;font-size:16px;cursor:pointer}
 .zoom button.live{font-size:12px;font-weight:700;color:var(--acc)}
+.zoom button.live.away,body.light .zoom button.live.away{background:var(--acc);color:#fff;border-color:var(--acc)}
 #tape,#srv{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
 .hidden{display:none!important}
 #tools{display:flex;align-items:center;gap:2px;padding:0 6px;height:34px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
@@ -1871,7 +1872,7 @@ function drawLiveAbs(ks, X, yOf, cw, x1, plotH) {   // on the Value Area chart (
 }
 
 // ---------------------------------------------------------------- loop
-let lastDraw = 0, lastHead = 0;
+let lastDraw = 0, lastHead = 0, liveAway = false;
 let spanT = 0;
 function frame(ts) {
   requestAnimationFrame(frame);
@@ -1883,6 +1884,8 @@ function frame(ts) {
   if (!dirty || ts - lastDraw < (LA.pulse && S.tab === 'va' ? 70 : 200)) return;
   lastDraw = ts; dirty = false;
   try { if (S.tab === 'fp') drawFP(); else if (S.tab === 'va') drawVA(); else drawHM(); } catch (e) { console.error(e); }
+  const away = S.tab === 'fp' ? !fpV.follow : S.tab === 'hm' ? !hmV.follow : S.tab === 'va' ? !vaV.follow && vaV.off >= 1 : false;
+  if (away !== liveAway) { liveAway = away; const b = $('#zLive'); b.classList.toggle('away', away); b.textContent = away ? 'LIVE ▶' : 'LIVE'; }
 }
 
 // ---------------------------------------------------------------- input: drag, pinch, wheel, buttons
@@ -1913,7 +1916,7 @@ cv.addEventListener('pointermove', e => {
     }
     if (S.tab === 'fp') { fpV.off = Math.max(0, fpV.off + dx / fpV.colW); fpV.center += dy / fpV.rowH * S.step; fpV.follow = false; }
     else if (S.tab === 'va') {           // sideways = time; up/down only once you clearly drag vertically (switches auto-scale off)
-      vaV.off = Math.max(0, vaV.off + dx / vaV.cw); if (dx) vaV.follow = false;
+      vaV.off = Math.max(0, vaV.off + dx / vaV.cw); if (dx) vaV.follow = vaV.off < 0.5;   // back at the newest candle = live again
       if (!vaV.auto || Math.abs(e.clientY - p.y0) > 40) { vaV.auto = false; vaV.center += dy / vaV.ppd; }
     } else { hmV.off = Math.max(0, hmV.off + dx / hmV.pps); hmV.center += dy * hmV.dpp; hmV.follow = false; }
     dirty = true;
