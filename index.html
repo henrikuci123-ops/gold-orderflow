@@ -818,7 +818,7 @@ function drawWalls(yOf, x1, plotH, part) {
     ctx.fillStyle = `rgba(${rgb},${a})`; ctx.fillRect(0, y0, x1, Math.max(3, y1 - y0));
     ctx.strokeStyle = `rgba(${rgb},.7)`; ctx.beginPath(); ctx.moveTo(0, Math.round(y0) + 0.5); ctx.lineTo(x1, Math.round(y0) + 0.5); ctx.moveTo(0, Math.round(y1) + 0.5); ctx.lineTo(x1, Math.round(y1) + 0.5); ctx.stroke();
     continue; }
-    const txt = `${w.side > 0 ? 'BUY' : 'SELL'} WALL ${fmtQ(w.qty)} ${UNIT()}`, tw = ctx.measureText(txt).width, ym = (y0 + y1) / 2;
+    const txt = small() ? `${w.side > 0 ? 'BUY' : 'SELL'} ${fmtQ(w.qty)}` : `${w.side > 0 ? 'BUY' : 'SELL'} WALL ${fmtQ(w.qty)}`, tw = ctx.measureText(txt).width, ym = (y0 + y1) / 2;
     ctx.fillStyle = C.wallLbl; ctx.fillRect(x1 - tw - 12, ym - 8, tw + 10, 16);
     ctx.strokeStyle = `rgba(${rgb},.9)`; ctx.strokeRect(x1 - tw - 11.5, ym - 7.5, tw + 9, 15);
     ctx.fillStyle = `rgb(${rgb})`;
@@ -900,10 +900,11 @@ function drawFP() {
   if (!fpV.center) fpV.center = lastPrice || candles.get(ks[ks.length - 1]).c;
   const yOf = p => midY - (p - fpV.center) / step * rowH;
   yOf.inv = y => fpV.center + (midY - y) / rowH * step;
-  const nVis = Math.ceil(x1 / colW) + 1, off = Math.max(0, Math.round(fpV.off));
+  const RM = small() ? 74 : 112;                     // free space right of the newest candle (MT5 'chart shift') - labels go here
+  const nVis = Math.ceil((x1 - RM) / colW) + 2, off = Math.max(0, Math.round(fpV.off));
   const last = ks.length - 1 - off;
   const vis = [];
-  for (let j = 0; j < nVis; j++) { const i = last - j; if (i < 0) break; if (i < ks.length) vis.push({c: candles.get(ks[i]), x: x1 - (j + 1) * colW}); }
+  for (let j = 0; j < nVis; j++) { const i = last - j; if (i < 0) break; if (i < ks.length) vis.push({c: candles.get(ks[i]), x: x1 - RM - (j + 1) * colW}); }
   let maxCell = 1;
   for (const {c} of vis) for (const v of c.cells.values()) { if (v[0] > maxCell) maxCell = v[0]; if (v[1] > maxCell) maxCell = v[1]; }
   const va = calcVA(prof);
