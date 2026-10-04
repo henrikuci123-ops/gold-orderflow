@@ -136,7 +136,8 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="ph">Show</div>
     <div class="pr"><span>Delta per price (right side)</span><input type="checkbox" id="vaDeltaC"></div>
     <div class="pr"><span>Numbers in the rows</span><input type="checkbox" id="vaNumC"></div>
-    <div class="pr"><span>Absorption bubbles</span><select id="vaAbsS"><option value="0">Off</option><option value="0.4">More</option><option value="0.6">Normal</option><option value="1">Only big</option></select></div>
+    <div class="pr"><span>Live absorption (pulse + alert)</span><select id="vaLiveS"><option value="0">Off</option><option value="0.8">More</option><option value="1.2">Normal</option><option value="1.8">Only big</option></select></div>
+    <div class="pr"><span>Absorption bubbles (swings)</span><select id="vaAbsS"><option value="0">Off</option><option value="0.4">More</option><option value="0.6">Normal</option><option value="1">Only big</option></select></div>
     <div class="pb"><button id="vaClear">Remove all</button><button id="vaClose" class="pri">Done</button></div>
   </div>
   <div id="tape" class="hidden">
@@ -185,7 +186,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="help">
     <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
     <b>Colours:</b> Settings → Colours changes candles, buys/sells, strong cells, POC, value area, walls, accent, background, grid and text (Reset colours = back to normal); each value area has its own colour in Value areas ▾; the heatmap colours are under Heatmap → Style.<br>
-    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView. <b>Absorption bubbles</b>: a swing high/low where unusually much traded right at the extreme and price then turned away — red at highs (buying absorbed, bearish), green at lows (selling absorbed, bullish), bigger = more volume, dashed = still forming (confirms within about 2–3 candles).<br>
+    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView. <b>Live absorption</b> (pulsing bubble + ABSORB tag on the price scale + alert): in the last minute unusually heavy selling (buying) keeps hitting the low (high) and price will not go through — it is being absorbed right now; afterwards a ✓ (held: price moved $1 away) or ✕ (broke through). <b>Absorption bubbles</b>: a swing high/low where unusually much traded right at the extreme and price then turned away — red at highs (buying absorbed, bearish), green at lows (selling absorbed, bullish), bigger = more volume, dashed = still forming (confirms within about 2–3 candles).<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%) — lines are drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (blue) or sell (orange) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
@@ -201,7 +202,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, vaAbsQ: 0.6, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, vaAbsQ: 0.6, liveAbsK: 1.2, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -1222,6 +1223,7 @@ function drawXH() {
       const d = c.b - c.s;
       tLabel = va.tf >= 240 ? tFmtD.format(c.t) : tFmt.format(c.t);
       lines = [tFmtX.format(c.t), `O ${fmtP(c.o)}   H ${fmtP(c.h)}`, `L ${fmtP(c.l)}   C ${fmtP(c.c)}`, `Vol ${fmtQ(c.b + c.s)} ${UNIT()}   Delta ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}`];
+      for (const e of (g.live || []).filter(e2 => e2.i === i)) lines.push(`${e.state === 'live' ? 'ABSORBING NOW' : e.state === 'held' ? 'Absorption held' : 'Absorption broke'} at ${fmtP(e.ext)}: ${e.side === 'low' ? 'sells' : 'buys'} ${fmtQ(e.vol)} ${UNIT()} in 60 s vs ${fmtQ(e.opp)} the other way · ${tFmtS.format(e.t0)}`);
       for (const e of (g.abs || []).filter(e2 => e2.i === i)) lines.push(`${e.side === 'h' ? 'Absorbed at the high' : 'Absorbed at the low'} ${fmtP(e.ext)}: ${fmtQ(e.vol)} ${UNIT()} (buys ${fmtQ(e.b)} · sells ${fmtQ(e.s)})${e.live ? ' — forming' : ''}`);
     } else lines = [`Price ${fmtP(price)}`];
     const r = Math.floor(price / va.step + 1e-7);
@@ -1648,7 +1650,8 @@ function drawVAProf(p, pr, X, yOf, x1, plotH, ppd, now) {
   // name + totals above the profile, level prices at the right end
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left'; ctx.font = 'bold 11px -apple-system,sans-serif';
   const d = pr.b - pr.s, yTop = Math.max(12, yOf((v.hi + 1) * st) - 6);
-  haloText(`${vaName(p, now)}  ·  Vol ${fmtQ(pr.b + pr.s)}  ·  Δ ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}`, Math.max(xa, 4) + 2, yTop, col);
+  const head = `${vaName(p, now)}  ·  Vol ${fmtQ(pr.b + pr.s)}  ·  Δ ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}`;
+  haloText(head, Math.max(4, Math.min(Math.max(xa, 4) + 2, x1 - ctx.measureText(head).width - 6)), yTop, col);
   ctx.font = '10px -apple-system,sans-serif'; ctx.textAlign = 'right';
   const tx = Math.min(xr, x1) - 4;
   haloText(`VAH ${fmtP((v.vah + 1) * st)}`, tx, yA - 3, col);
@@ -1698,6 +1701,7 @@ function drawVA() {
       if (r >= 12) { ctx.font = 'bold 10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; haloText(fmtQ(e.vol), x, y, col); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
     }
   }
+  const liveEv = S.liveAbsK > 0 ? drawLiveAbs(ks, X, yOf, cw, x1, plotH) : [];
   if (vaPick && vaPick.stage === 2) {                               // first candle of a custom range
     const i = ks.indexOf(vaPick.a);
     if (i >= 0) { ctx.fillStyle = 'rgba(41,98,255,.15)'; ctx.fillRect(X(i), 0, cw, plotH); }
@@ -1705,6 +1709,10 @@ function drawVA() {
   lastLine(yOf, x1, plotH);
   ctx.restore();
   priceAxis(x1, yOf, 0, plotH, ppd * va.step, va.step);
+  for (const e of liveEv) if (e.state === 'live' && e.y > 8 && e.y < plotH - 8) {     // 'ABSORB' tag on the price scale while it happens
+    ctx.fillStyle = e.side === 'low' ? C.up : C.dn; ctx.fillRect(x1 + 1, e.y - 9, W - x1 - 1, 18);
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('ABSORB', x1 + 5, e.y); ctx.textBaseline = 'alphabetic';
+  }
   // time strip: day names at day starts, times in between
   ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, x1, BOT);
   ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, plotH + 0.5); ctx.lineTo(W, plotH + 0.5); ctx.stroke();
@@ -1729,7 +1737,7 @@ function drawVA() {
     ctx.fillStyle = '#2962ff'; ctx.fillRect(bx, by, tw, 28); ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(t, bx + 12, by + 14);
   }
   ctx.textBaseline = 'alphabetic';
-  geo = {kind: 'va', x1, plotH, yOf, axX: x1, cw, last, RM, ks, profs, abs: absEv};
+  geo = {kind: 'va', x1, plotH, yOf, axX: x1, cw, last, RM, ks, profs, abs: absEv, live: liveEv};
   drawXH();
 }
 function vaCandleAt(x) {                     // candle time under a screen x (custom range picking)
@@ -1749,7 +1757,7 @@ function vaPickTap(x) {
   dirty = true;
 }
 function vaPanelSync() {
-  $('#vaDeltaC').checked = !!S.vaDelta; $('#vaNumC').checked = !!S.vaNum; $('#vaAbsS').value = String(S.vaAbsQ ?? 0.6);
+  $('#vaDeltaC').checked = !!S.vaDelta; $('#vaNumC').checked = !!S.vaNum; $('#vaAbsS').value = String(S.vaAbsQ ?? 0.6); $('#vaLiveS').value = String(S.liveAbsK ?? 1.2);
   const now = Date.now();
   $('#vaList').innerHTML = S.vaProfs.length ? S.vaProfs.map(p => `<div class="vrow"><input type="color" data-col="${p.id}" value="${vaCol(p)}" aria-label="Colour"><span>${vaName(p, now)}</span><label><input type="checkbox" data-ext="${p.id}"${p.ext ? ' checked' : ''}> extend</label><button data-del="${p.id}" aria-label="Remove">✕</button></div>`).join('')
     : '<div class="d" style="font-size:12px;padding:4px 0">None yet — add one above.</div>';
@@ -1766,6 +1774,7 @@ document.querySelectorAll('#vaPanel [data-add]').forEach(b => b.onclick = () => 
 });
 $('#vaDeltaC').onchange = () => { S.vaDelta = $('#vaDeltaC').checked ? 1 : 0; saveS(); dirty = true; };
 $('#vaNumC').onchange = () => { S.vaNum = $('#vaNumC').checked ? 1 : 0; saveS(); dirty = true; };
+$('#vaLiveS').onchange = () => { S.liveAbsK = +$('#vaLiveS').value; saveS(); dirty = true; };
 $('#vaAbsS').onchange = () => { S.vaAbsQ = +$('#vaAbsS').value; va.absCache = new Map(); saveS(); dirty = true; };
 $('#vaClear').onclick = () => { S.vaProfs = []; saveS(); vaPanelSync(); dirty = true; };
 $('#vaClose').onclick = () => $('#vaPanel').classList.add('hidden');
@@ -1774,6 +1783,92 @@ document.querySelectorAll('#tfVa button[data-vtf]').forEach(b => b.onclick = () 
   const tf = +b.dataset.vtf; if (tf === S.vaTf && (va.ready || va.busy)) return;
   S.vaTf = tf; saveS(); vaV.follow = true; vaV.auto = true; vaReset(); renderTools(); loadVA();
 });
+
+// ---------------------------------------------------------------- live absorption (works on seconds, not candles)
+// Every second: over the last 60 s, if aggressive selling (or buying) hitting the session's low (high) zone of that minute
+// is unusually big (>= k x a normal minute of total volume), clearly one-sided, and that low (high) has held for 8+ s,
+// price is being absorbed RIGHT NOW -> pulsing bubble + alert. Afterwards: held (price moved $1 away) or broken.
+// Backtest on Oct 1-2 data (minute version): about 8 alerts a day at "normal", ~2 of 3 held for the next minutes.
+const LA = {ev: [], id: 0, pulse: false, lastAlert: {low: 0, high: 0}};
+const LA_Z = 0.4;
+function tradeIdxFrom(T) { let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (tT[m] < T) lo = m + 1; else hi = m; } return lo; }
+function normPerMin(now) {                    // normal total volume per minute (last 30 min; Binance 1-min candles right after opening)
+  if (n && tT[0] <= now - 10 * 60000) {
+    const from = Math.max(tT[0], now - 30 * 60000); let s = 0;
+    for (let i = tradeIdxFrom(from); i < n; i++) s += tQ[i];
+    return s / Math.max(1, (now - from) / 60000);
+  }
+  const ks = klines.slice(-30); return ks.length ? ks.reduce((s, k) => s + k[5], 0) / ks.length : 0;
+}
+function liveAbsCheck() {
+  const k = S.liveAbsK; LA.pulse = LA.ev.some(e => e.state === 'live');
+  if (!k || !n || filling) return;
+  const now = Date.now(); if (now - tT[n - 1] > 30000) return;           // no live trades (market closed / disconnected)
+  const norm = normPerMin(now); if (!(norm > 0)) return;
+  const i0 = tradeIdxFrom(now - 60000); if (i0 >= n) return;
+  let L = Infinity, Hh = -Infinity;
+  for (let i = i0; i < n; i++) { if (tP[i] < L) L = tP[i]; if (tP[i] > Hh) Hh = tP[i]; }
+  const px = tP[n - 1];
+  // what happened to the ones that are pulsing
+  for (const e of LA.ev) {
+    if (e.state !== 'live') continue;
+    if (e.side === 'low' ? L < e.ext - LA_Z : Hh > e.ext + LA_Z) { e.state = 'broken'; e.tEnd = now; }
+    else if (e.side === 'low' ? px >= e.ext + 1 : px <= e.ext - 1) { e.state = 'held'; e.tEnd = now; }
+    else if (now - e.t > 5 * 60000) { e.state = 'held'; e.tEnd = now; }
+  }
+  for (const side of ['low', 'high']) {
+    const ext = side === 'low' ? L : Hh;
+    let agg = 0, opp = 0, tFirst = 0;
+    for (let i = i0; i < n; i++) {
+      const p = tP[i]; if (side === 'low' ? p > ext + LA_Z : p < ext - LA_Z) continue;
+      if (!tFirst && Math.abs(p - ext) <= 0.05) tFirst = tT[i];
+      if ((side === 'low') === (tM[i] === 1)) agg += tQ[i]; else opp += tQ[i];
+    }
+    if (agg < k * norm || agg < 1.8 * opp || !tFirst || now - tFirst < 8000) continue;
+    if (side === 'low' ? px > ext + 2 * LA_Z : px < ext - 2 * LA_Z) continue;      // price already left: not 'right now' any more
+    const prev = LA.ev.find(x => x.side === side && Math.abs(x.ext - ext) <= LA_Z && now - (x.tEnd || x.t) < 180000);
+    if (prev && prev.state !== 'live') continue;                                     // this level was just resolved: no repeat
+    let e = prev;
+    if (!e) {
+      e = {id: ++LA.id, side, ext, t0: now, t: now, vol: agg, opp, state: 'live'}; LA.ev.push(e);
+      if (now - LA.lastAlert[side] > 120000) {
+        LA.lastAlert[side] = now;
+        toast(`${side === 'low' ? 'Selling' : 'Buying'} being absorbed at ${fmtP(ext)} — ${fmtQ(agg)} ${UNIT()} hit it in the last minute and price is holding (${side === 'low' ? 'bullish' : 'bearish'})`);
+        if (S.sound) beep(side === 'low' ? 880 : 520);
+      }
+    }
+    e.t = now; e.vol = Math.max(e.vol, agg); e.opp = opp;
+    e.ext = side === 'low' ? Math.min(e.ext, ext) : Math.max(e.ext, ext);
+  }
+  LA.ev = LA.ev.filter(e => now - e.t0 < 24 * 3600000).slice(-80);
+  LA.pulse = LA.ev.some(e => e.state === 'live');
+  if (LA.pulse || LA.ev.length) dirty = true;
+}
+setInterval(liveAbsCheck, 1000);
+function drawLiveAbs(ks, X, yOf, cw, x1, plotH) {   // on the Value Area chart (candle of the moment it started)
+  const out = [], ph = (performance.now() % 1200) / 1200;
+  for (const e of LA.ev) {
+    const t = vaKey(e.t0); let lo = 0, hi = ks.length - 1, i = -1;
+    while (lo <= hi) { const m = (lo + hi) >> 1; if (ks[m] === t) { i = m; break; } if (ks[m] < t) lo = m + 1; else hi = m - 1; }
+    if (i < 0) continue;
+    const x = X(i) + cw / 2, y = yOf(e.side === 'low' ? e.ext + LA_Z / 2 : e.ext - LA_Z / 2);
+    if (x < -20 || x > x1 + 20 || y < -20 || y > plotH + 20) continue;
+    const col = e.state === 'broken' ? '#9598a1' : e.side === 'low' ? C.up : C.dn, rgb = hexRgb(col);
+    if (e.state === 'live') {                          // pulsing: core + expanding ring
+      const r = 9 + 3 * Math.sin(ph * 2 * Math.PI);
+      ctx.beginPath(); ctx.arc(x, y, 9 + 18 * ph, 0, 2 * Math.PI); ctx.strokeStyle = `rgba(${rgb},${(1 - ph).toFixed(2)})`; ctx.lineWidth = 3; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = `rgba(${rgb},.55)`; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+    } else {
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, 2 * Math.PI); ctx.fillStyle = `rgba(${rgb},.3)`; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+      ctx.strokeStyle = col; ctx.beginPath();
+      if (e.state === 'broken') { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
+      else { ctx.moveTo(x - 4, y); ctx.lineTo(x - 1, y + 3); ctx.lineTo(x + 4, y - 3); }
+      ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+    }
+    out.push(Object.assign({i, y}, e));
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- loop
 let lastDraw = 0, lastHead = 0;
@@ -1784,7 +1879,8 @@ function frame(ts) {
   if (ts - lastHead > 500) { lastHead = ts; renderHeader(); }
   if (S.tab === 'tape') { if (ts - tapeT > 1000) { tapeT = ts; renderTape(); } return; }
   if (S.tab === 'srv') return;
-  if (!dirty || ts - lastDraw < 200) return;
+  if (LA.pulse && S.tab === 'va') dirty = true;                     // live absorption bubble pulses
+  if (!dirty || ts - lastDraw < (LA.pulse && S.tab === 'va' ? 70 : 200)) return;
   lastDraw = ts; dirty = false;
   try { if (S.tab === 'fp') drawFP(); else if (S.tab === 'va') drawVA(); else drawHM(); } catch (e) { console.error(e); }
 }
@@ -2033,7 +2129,7 @@ loadDayTrend();
 resize();
 requestAnimationFrame(frame);
 start();
-window.GOF = {S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals, srvHist: () => srvHist, srvStat: () => srvStat, walls: () => walls, loadBookHistory};
+window.GOF = {LA, S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals, srvHist: () => srvHist, srvStat: () => srvStat, walls: () => walls, loadBookHistory};
 })();
 </script>
 </body>
