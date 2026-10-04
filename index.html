@@ -136,6 +136,7 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="ph">Show</div>
     <div class="pr"><span>Delta per price (right side)</span><input type="checkbox" id="vaDeltaC"></div>
     <div class="pr"><span>Numbers in the rows</span><input type="checkbox" id="vaNumC"></div>
+    <div class="pr"><span>Absorption bubbles</span><select id="vaAbsS"><option value="0">Off</option><option value="0.4">More</option><option value="0.6">Normal</option><option value="1">Only big</option></select></div>
     <div class="pb"><button id="vaClear">Remove all</button><button id="vaClose" class="pri">Done</button></div>
   </div>
   <div id="tape" class="hidden">
@@ -184,7 +185,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="help">
     <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
     <b>Colours:</b> Settings → Colours changes candles, buys/sells, strong cells, POC, value area, walls, accent, background, grid and text (Reset colours = back to normal); each value area has its own colour in Value areas ▾; the heatmap colours are under Heatmap → Style.<br>
-    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView.<br>
+    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView. <b>Absorption bubbles</b>: a swing high/low where unusually much traded right at the extreme and price then turned away — red at highs (buying absorbed, bearish), green at lows (selling absorbed, bullish), bigger = more volume, dashed = still forming (confirms within about 2–3 candles).<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%) — lines are drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (blue) or sell (orange) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
@@ -200,7 +201,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, vaAbsQ: 0.6, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -1221,6 +1222,7 @@ function drawXH() {
       const d = c.b - c.s;
       tLabel = va.tf >= 240 ? tFmtD.format(c.t) : tFmt.format(c.t);
       lines = [tFmtX.format(c.t), `O ${fmtP(c.o)}   H ${fmtP(c.h)}`, `L ${fmtP(c.l)}   C ${fmtP(c.c)}`, `Vol ${fmtQ(c.b + c.s)} ${UNIT()}   Delta ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}`];
+      for (const e of (g.abs || []).filter(e2 => e2.i === i)) lines.push(`${e.side === 'h' ? 'Absorbed at the high' : 'Absorbed at the low'} ${fmtP(e.ext)}: ${fmtQ(e.vol)} ${UNIT()} (buys ${fmtQ(e.b)} · sells ${fmtQ(e.s)})${e.live ? ' — forming' : ''}`);
     } else lines = [`Price ${fmtP(price)}`];
     const r = Math.floor(price / va.step + 1e-7);
     for (const {p, pr} of (g.profs || []).slice(0, 3)) {             // what the value areas hold at this price
@@ -1486,7 +1488,7 @@ const VA_TF = {5: {step: 0.5, h: 72}, 15: {step: 0.5, h: 240}, 30: {step: 0.5, h
 const VA_COLS = ['#2962ff', '#8e24aa', '#00897b', '#ef6c00', '#d81b60', '#6d4c41'];
 if (!VA_TF[S.vaTf]) S.vaTf = 15;
 if (!Array.isArray(S.vaProfs)) S.vaProfs = [{id: 1, kind: 'pday', ext: 1}, {id: 2, kind: 'today', ext: 0}];
-const va = {c: new Map(), keys: null, tf: 0, step: 0.5, until: 0, lastA: -1, ready: false, busy: false, err: '', gen: 0, cache: new Map()};
+const va = {c: new Map(), keys: null, tf: 0, step: 0.5, until: 0, lastA: -1, ready: false, busy: false, err: '', gen: 0, cache: new Map(), absCache: new Map()};
 const vaV = {cw: 9, ppd: 4, auto: true, follow: true, center: 0, off: 0};
 let vaPick = null;                          // custom range: {stage: 1} -> {stage: 2, a: candle time}
 const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)).join(',');
@@ -1494,7 +1496,7 @@ const vaCol = p => p.col || VA_COLS[(p.id - 1) % VA_COLS.length];
 function vaKey(T, tf = va.tf) { const m = tf * 60000; if (tf <= 60) return T - T % m; const o = mt5Off(T); return Math.floor((T + o) / m) * m - o; }
 function vaKeys() { if (!va.keys) va.keys = [...va.c.keys()].filter(t => tradingDay(mt5Day(t))).sort((a, b) => a - b); return va.keys; }   // no weekend candles, like MT5
 const vaNew = (t, p) => ({t, o: p, h: p, l: p, c: p, s: 0, b: 0, cells: new Map()});
-function vaReset() { va.gen++; va.ready = false; va.busy = false; va.c = new Map(); va.keys = null; va.cache = new Map(); va.lastA = -1; }
+function vaReset() { va.gen++; va.ready = false; va.busy = false; va.c = new Map(); va.keys = null; va.cache = new Map(); va.absCache = new Map(); va.lastA = -1; }
 async function loadVA() {
   if (S.sym !== 'XAUUSDT') { va.err = 'value areas use the server history — XAUUSDT only'; va.ready = false; dirty = true; return; }
   const g = ++va.gen, tf = S.vaTf, cfg = VA_TF[tf], sub = tf <= 60 ? tf : 60;
@@ -1506,7 +1508,7 @@ async function loadVA() {
     const d = await r.json();
     if (d.error) throw new Error(d.error);
     if (g !== va.gen) return;
-    va.c = new Map(); va.keys = null; va.cache = new Map(); va.tf = tf; va.step = cfg.step; va.until = d.until || until; va.lastA = -1;
+    va.c = new Map(); va.keys = null; va.cache = new Map(); va.absCache = new Map(); va.tf = tf; va.step = cfg.step; va.until = d.until || until; va.lastA = -1;
     for (const a of d.c) {
       const k = vaKey(a[0], tf); let c = va.c.get(k);
       if (!c) { c = vaNew(k, a[1]); c.h = a[2]; c.l = a[3]; va.c.set(k, c); }
@@ -1568,6 +1570,42 @@ function vaProfile(f, u) {                   // all candles in [f, u): volume pe
   }
   const out = i0 < 0 || !rows.size ? null : {i0, i1, rows, b, s, v: calcVA(rows)};
   if (fixed) va.cache.set(ck, out);
+  return out;
+}
+// absorption bubbles: a swing high / low (highest / lowest of 2 candles each side) where unusually much was traded right at
+// the extreme and price then turned away (>= 1.2 x the average candle range within 3 candles). Big aggressive buying at
+// a high that goes nowhere = a big passive seller absorbed it (bearish, red); the mirror at a low = bullish (green).
+// Dashed = still forming (not confirmed yet).
+function vaAbsAt(ks, i) {
+  const t = ks[i], last = ks.length - 1, fixed = i <= last - 5;
+  if (fixed && va.absCache.has(t)) return va.absCache.get(t);
+  let out = null;
+  const C = j => va.c.get(ks[j]), K = 2, right = Math.min(K, last - i);
+  if (i >= 14 && right >= 1) {
+    const c = C(i); let atr = 0, avg = 0, na = 0;
+    for (let j = i - 14; j < i; j++) atr += C(j).h - C(j).l;
+    atr /= 14;
+    for (let j = Math.max(0, i - 48); j < i; j++) { const x = C(j); avg += x.b + x.s; na++; }
+    avg /= na || 1;
+    const Z = Math.max(2 * va.step, 0.3 * atr), q = S.vaAbsQ || 0.6, res = [];
+    for (const side of ['h', 'l']) {
+      const ext = c[side]; let piv = atr > 0;
+      for (let j = i - K; j <= i + right && piv; j++) if (j !== i && (side === 'h' ? C(j).h > ext : C(j).l < ext)) piv = false;
+      if (!piv) continue;
+      let B = 0, Sv = 0;
+      for (let j = i - 1; j <= Math.min(i + 1, last); j++) for (const [r, v] of C(j).cells) {
+        const p = (r + 0.5) * va.step; if (side === 'h' ? p >= ext - Z : p <= ext + Z) { Sv += v[0]; B += v[1]; }
+      }
+      if (B + Sv < q * avg) continue;
+      let mv = 0;
+      for (let j = i + 1; j <= Math.min(i + 3, last); j++) mv = Math.max(mv, side === 'h' ? ext - C(j).l : C(j).h - ext);
+      const done = mv >= 1.2 * atr && right >= K;
+      if (!done && (fixed || mv < 0.6 * atr)) continue;
+      res.push({side, ext, p: side === 'h' ? ext - Z / 2 : ext + Z / 2, vol: B + Sv, b: B, s: Sv, live: !done});
+    }
+    out = res.length ? res : null;
+  }
+  if (fixed) va.absCache.set(t, out);
   return out;
 }
 function vaMergeK(st, rowPx, minPx) {        // merge price rows into round $ steps until a row is minPx tall
@@ -1649,6 +1687,17 @@ function drawVA() {
     const bw = Math.max(1, Math.round(cw * 0.7)), yo = yOf(c.o), yc = yOf(c.c);
     ctx.fillStyle = col; ctx.fillRect(Math.round(x + (cw - bw) / 2), Math.min(yo, yc), bw, Math.max(1, Math.abs(yc - yo)));
   }
+  const absEv = [];
+  if (S.vaAbsQ > 0) {                                               // absorption bubbles
+    let mxv = 0;
+    for (let i = Math.max(iFirst, 14); i <= last; i++) { const a = vaAbsAt(ks, i); if (a) for (const e of a) { absEv.push(Object.assign({i}, e)); mxv = Math.max(mxv, e.vol); } }
+    for (const e of absEv) {
+      const x = X(e.i) + cw / 2, y = yOf(e.p), r = clamp(5 + 14 * Math.sqrt(e.vol / (mxv || 1)), 5, 20), col = e.side === 'l' ? C.up : C.dn;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = `rgba(${hexRgb(col)},.28)`; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = col; if (e.live) ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1;
+      if (r >= 12) { ctx.font = 'bold 10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; haloText(fmtQ(e.vol), x, y, col); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; }
+    }
+  }
   if (vaPick && vaPick.stage === 2) {                               // first candle of a custom range
     const i = ks.indexOf(vaPick.a);
     if (i >= 0) { ctx.fillStyle = 'rgba(41,98,255,.15)'; ctx.fillRect(X(i), 0, cw, plotH); }
@@ -1680,7 +1729,7 @@ function drawVA() {
     ctx.fillStyle = '#2962ff'; ctx.fillRect(bx, by, tw, 28); ctx.fillStyle = '#ffffff'; ctx.textBaseline = 'middle'; ctx.fillText(t, bx + 12, by + 14);
   }
   ctx.textBaseline = 'alphabetic';
-  geo = {kind: 'va', x1, plotH, yOf, axX: x1, cw, last, RM, ks, profs};
+  geo = {kind: 'va', x1, plotH, yOf, axX: x1, cw, last, RM, ks, profs, abs: absEv};
   drawXH();
 }
 function vaCandleAt(x) {                     // candle time under a screen x (custom range picking)
@@ -1700,7 +1749,7 @@ function vaPickTap(x) {
   dirty = true;
 }
 function vaPanelSync() {
-  $('#vaDeltaC').checked = !!S.vaDelta; $('#vaNumC').checked = !!S.vaNum;
+  $('#vaDeltaC').checked = !!S.vaDelta; $('#vaNumC').checked = !!S.vaNum; $('#vaAbsS').value = String(S.vaAbsQ ?? 0.6);
   const now = Date.now();
   $('#vaList').innerHTML = S.vaProfs.length ? S.vaProfs.map(p => `<div class="vrow"><input type="color" data-col="${p.id}" value="${vaCol(p)}" aria-label="Colour"><span>${vaName(p, now)}</span><label><input type="checkbox" data-ext="${p.id}"${p.ext ? ' checked' : ''}> extend</label><button data-del="${p.id}" aria-label="Remove">✕</button></div>`).join('')
     : '<div class="d" style="font-size:12px;padding:4px 0">None yet — add one above.</div>';
@@ -1717,6 +1766,7 @@ document.querySelectorAll('#vaPanel [data-add]').forEach(b => b.onclick = () => 
 });
 $('#vaDeltaC').onchange = () => { S.vaDelta = $('#vaDeltaC').checked ? 1 : 0; saveS(); dirty = true; };
 $('#vaNumC').onchange = () => { S.vaNum = $('#vaNumC').checked ? 1 : 0; saveS(); dirty = true; };
+$('#vaAbsS').onchange = () => { S.vaAbsQ = +$('#vaAbsS').value; va.absCache = new Map(); saveS(); dirty = true; };
 $('#vaClear').onclick = () => { S.vaProfs = []; saveS(); vaPanelSync(); dirty = true; };
 $('#vaClose').onclick = () => $('#vaPanel').classList.add('hidden');
 $('#vaB').onclick = () => { const p = $('#vaPanel'); if (p.classList.contains('hidden')) { vaPick = null; vaPanelSync(); p.classList.remove('hidden'); } else p.classList.add('hidden'); dirty = true; };
