@@ -26,6 +26,14 @@ main() {
     systemctl restart gof-history.service
     echo "$(date -u '+%F %T') history restarted" >> "$LOG"
   fi
+  if echo "$changed" | grep -Eq '^server/(signals|absorb|fpcore).py$'; then
+    systemctl restart gof-signals.service
+    echo "$(date -u '+%F %T') signals restarted" >> "$LOG"
+  fi
+  if echo "$changed" | grep -Eq '^server/(backtest|absorb).py$'; then
+    systemctl start --no-block gof-backtest.service
+    echo "$(date -u '+%F %T') backtest started" >> "$LOG"
+  fi
   return 0
 }
 main "$@"
