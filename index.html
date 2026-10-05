@@ -1234,7 +1234,7 @@ function drawXH() {
       lines.push(`${vaName(p, Date.now()).split(' · ')[0]} @ ${fmtP(r * va.step)}: vol ${fmtQ(e[0] + e[1])}  Δ ${dd >= 0 ? '+' : '−'}${fmtQ(Math.abs(dd))}`);
     }
   } else {
-    const t = g.tEnd - Math.floor((g.x1 - x) / g.pps);
+    const t = g.tEnd - Math.max(0, Math.floor(((g.xN ?? g.x1) - x) / g.pps));
     tLabel = tFmtS.format(t * 1000);
     lines = [tFmtX.format(t * 1000).replace(/(\d\d:\d\d)$/, tFmtS.format(t * 1000)), `Price ${fmtP(price)}`];
     let lo = 0, hi = g.vis.length - 1, col = null;                     // order book at that moment and price
@@ -1268,7 +1268,8 @@ function drawXH() {
   ctx.restore(); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 function hmLayout() { const sm = small(); return {AX: 58, BW: S.cob ? (sm ? 58 : 104) : (sm ? 40 : 70), SW: S.svp ? (sm ? 40 : 84) : 0}; }
-function hmPlotW() { const l = hmLayout(); return Math.max(50, W - l.AX - l.BW - l.SW); }
+const hmGap = () => small() ? 34 : 60;        // free space between the newest data and the order book (COB)
+function hmPlotW() { const l = hmLayout(); return Math.max(50, W - l.AX - l.BW - l.SW - hmGap()); }
 function drawHM() {                       // drawn with the heatmap's own (dark/light) colours
   const pal = HMPAL[hmPal()], saved = C;
   C = themeWith(pal.dark ? 'dark' : 'light', false);        // heatmap keeps its own background, uses your chart colours
@@ -1278,7 +1279,7 @@ function drawHM2(LUTh) {
   ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
   if (!cols.length) { msg(loading || 'Building the order book…'); return; }
   const {AX, BW, SW} = hmLayout(), TB = 18, VB = S.vbars ? (small() ? 34 : 50) : 0;
-  const x1 = W - AX - BW - SW, plotH = H - TB, midY = plotH / 2;
+  const x1 = W - AX - BW - SW, plotH = H - TB, midY = plotH / 2, GAP = hmGap(), xN = x1 - GAP;   // xN = 'now'
   const lastCol = cols[cols.length - 1], nowSec = Math.max(lastCol.t, Math.floor(Date.now() / 1000) - 1), stale = nowSec - lastCol.t > 15;
   if (hmV.follow) { hmV.off = 0; hmV.center = lastPrice || (lastCol.bb + lastCol.ba) / 2; }
   if (!hmV.center) hmV.center = (lastCol.bb + lastCol.ba) / 2;
@@ -1287,7 +1288,7 @@ function drawHM2(LUTh) {
   const hs = lastCol.hs || S.hstep, rowPx = hs / hmV.dpp;
   const rTop = Math.floor(yOf.inv(0) / hs), rBot = Math.floor(yOf.inv(plotH) / hs);
   const nRows = Math.min(2000, rTop - rBot + 1);
-  const secsVis = Math.max(1, Math.ceil(x1 / hmV.pps));
+  const secsVis = Math.max(1, Math.ceil(xN / hmV.pps));
   const tEnd = nowSec - Math.round(hmV.off), tStart = tEnd - secsVis + 1;
   let lo = 0, hi = cols.length;
   while (lo < hi) { const m = (lo + hi) >> 1; if (cols[m].t < tStart) lo = m + 1; else hi = m; }
@@ -1313,9 +1314,9 @@ function drawHM2(LUTh) {
     }
     octx.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, secsVis, nRows, x1 - secsVis * hmV.pps, yOf((rTop + 1) * hs), secsVis * hmV.pps, nRows * rowPx);
+    ctx.drawImage(off, 0, 0, secsVis, nRows, xN - secsVis * hmV.pps, yOf((rTop + 1) * hs), secsVis * hmV.pps, nRows * rowPx);
   }
-  const xOf = t => x1 - (tEnd - t + 1) * hmV.pps + hmV.pps / 2;
+  const xOf = t => xN - (tEnd - t + 1) * hmV.pps + hmV.pps / 2;
   const every = [15, 30, 60, 120, 300, 600, 900].find(s2 => s2 * hmV.pps >= 70) || 1800;
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, x1, plotH); ctx.clip();
   // dashed time grid (like Bookmap) + faint price grid
@@ -1345,7 +1346,7 @@ function drawHM2(LUTh) {
     const w = tfs * hmV.pps, bw = Math.max(1, Math.round(w * 0.6));
     hmCs = {tfs, list: hmCandles(tfs, tStart - tfs, tEnd, psFrom)};
     for (const c of hmCs.list) {
-      const xL = x1 - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
+      const xL = xN - (tEnd - c.t + 1) * hmV.pps, cx = Math.round(xL + w / 2) + 0.5;
       if (xL > x1 || xL + w < 0) continue;
       const col = c.c >= c.o ? C.up : C.dn, yo = yOf(c.o), yc = yOf(c.c), top = Math.min(yo, yc), hg = Math.max(1, Math.abs(yc - yo));
       ctx.strokeStyle = C.hmEdge; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, yOf(c.h)); ctx.lineTo(cx, yOf(c.l)); ctx.stroke();
@@ -1425,7 +1426,7 @@ function drawHM2(LUTh) {
   ctx.fillStyle = C.dim; ctx.font = '10px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center';
   for (let t = Math.ceil(tStart / every) * every; t <= tEnd; t += every) ctx.fillText(tFmt.format(t * 1000), xOf(t), plotH + 13);
   ctx.textAlign = 'left';
-  geo = {kind: 'hm', x1, plotH, yOf, axX: W - AX, tEnd, pps: hmV.pps, hs, vis, bk, B, cs: hmCs};
+  geo = {kind: 'hm', x1, xN, plotH, yOf, axX: W - AX, tEnd, pps: hmV.pps, hs, vis, bk, B, cs: hmCs};
   drawXH();
 }
 // OHLC per tfs seconds: 1-minute candles before the app's own trades, per-second trades after
