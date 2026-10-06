@@ -194,8 +194,12 @@ def gex_once():
         else:
             put[K] = put.get(K, 0) + gex
         net[K] = net.get(K, 0) + sign * gex
-    cw = max(call, key=call.get)
-    pw = max(put, key=put.get)
+    # walls: biggest call gamma strike ABOVE the price (resistance) and biggest put gamma strike BELOW it (support).
+    # (Without the split both often land on the same at-the-money strike, which says nothing.)
+    ca = {k: v for k, v in call.items() if k > S} or call
+    pb = {k: v for k, v in put.items() if k < S} or put
+    cw = max(ca, key=ca.get)
+    pw = max(pb, key=pb.get)
     total = lambda x: sum(sign * bs_gamma(x, K, T, iv) * oi * 100 * x * x * 0.01 for K, T, iv, oi, sign, g in opts if iv > 0)
     grid = [S * (0.9 + 0.0025 * i) for i in range(81)]
     vals = [total(x) for x in grid]
