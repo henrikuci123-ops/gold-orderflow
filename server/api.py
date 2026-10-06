@@ -8,9 +8,12 @@ GET /api/fp?tf=5&step=0.5&from=<ms>&until=<ms>&sess=<ms>   footprint candles for
 GET /api/secs?minutes=120      every second with trades in the last N minutes (1-360), for the heatmap's bubbles / candles:
     {"s": [[t_sec, open, high, low, close, buy_oz, sell_oz, buy_vwap, sell_vwap], ...]}
 GET /api/health                 "ok"
+    /api/fp?...&x=1 adds the volume of the other gold perpetuals recorded by multi.py (Bybit, OKX, Bitget, Gate, MEXC)
+    to the Binance footprint (candle prices stay Binance's).
+POST /api/mt5                   live XAUUSD quote from Henri's MT5 (GoldPriceBridge EA) -> <www>/context/mt5.json
 Only the Python standard library; reads the hourly files written by recorder.py (plain or gzipped).
 """
-import gzip, json, os, threading, time
+import gzip, hashlib, json, os, threading, time
 import fpcore as F
 from collections import OrderedDict
 from datetime import datetime, timezone, timedelta
@@ -20,6 +23,9 @@ from urllib.parse import urlparse, parse_qs
 SYMBOL = os.environ.get("GOF_SYMBOL", "XAUUSDT")
 BASE = os.environ.get("GOF_DATA") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "orderflow_data")
 PORT = int(os.environ.get("GOF_API_PORT", "8081"))
+WWW = os.environ.get("GOF_STATUS") or BASE
+# sha256 of the key the MT5 bridge EA sends (the key itself is only in the EA on Henri's PC)
+MT5_KEY_SHA = "0d8a2c0f5bdfc7c1bbb91cfd8e807fcf4d2e640137ed290e3b28ef4c39debb9c"
 STEP = 0.25
 MAX_MIN = 360
 
@@ -126,6 +132,85 @@ def hour_atoms(h, now_ms):
     return F.build_atoms(F.recorded_trades(day, hh)), None
 
 
+_xatoms_cache = OrderedDict()         # (day, hh) -> (token, xatoms)
+
+
+def hour_xatoms(h, now_ms):
+    """Volume-only minute atoms of the other exchanges for the UTC hour starting at h. Returns (atoms, token)."""
+    day, hh = F.day_hour(h)
+    finished = h + 3600000 <= now_ms - 180000
+    xp = F.xatoms_path(day, hh)
+    if finished:
+        try:
+            mt = os.stat(xp).st_mtime
+        except OSError:
+            mt = None
+        if mt is not None:
+            hit = _xatoms_cache.get((day, hh))
+            if hit and hit[0] == mt:
+                _xatoms_cache.move_to_end((day, hh))
+                return hit[1], mt
+            try:
+                with gzip.open(xp, "rt", encoding="utf-8") as f:
+                    atoms = json.load(f).get("m", [])
+                _xatoms_cache[(day, hh)] = (mt, atoms)
+                while len(_xatoms_cache) > 96:
+                    _xatoms_cache.popitem(last=False)
+                return atoms, mt
+            except (OSError, EOFError, ValueError):
+                pass
+    files = F.xtrade_files(day, hh)
+    if not files:
+        return [], (0 if finished else None)
+    atoms = F.build_xatoms(F.recorded_xtrades(day, hh))
+    if finished and atoms:
+        try:
+            os.makedirs(os.path.dirname(xp), exist_ok=True)
+            tmp = xp + ".tmp"
+            with gzip.open(tmp, "wt", encoding="utf-8") as f:
+                json.dump({"src": "x", "m": atoms}, f, separators=(",", ":"))
+            os.replace(tmp, xp)
+            mt = os.stat(xp).st_mtime
+            _xatoms_cache[(day, hh)] = (mt, atoms)
+            return atoms, mt
+        except OSError:
+            pass
+    return atoms, None
+
+
+def aggregate_x(xatoms, tf, stepc, t0, t1, sess):
+    """volume-only atoms -> ({sub_t: [sell, buy, {row: [s, b]}]}, profile {row: [s, b]})"""
+    subs, prof, tfm = {}, {}, tf * 60000
+    for a in xatoms:
+        t = a[0]
+        if t < t0 or t >= t1:
+            continue
+        k = t - t % tfm
+        e = subs.get(k)
+        if e is None:
+            e = subs[k] = [0.0, 0.0, {}]
+        r0, cells, inprof = a[5], e[2], t >= sess
+        for i in range(6, len(a), 2):
+            sv, bv = a[i], a[i + 1]
+            if not sv and not bv:
+                continue
+            R = ((r0 + (i - 6) // 2) * F.BASEC) // stepc
+            c = cells.get(R)
+            if c is None:
+                c = cells[R] = [0.0, 0.0]
+            c[0] += sv
+            c[1] += bv
+            e[0] += sv
+            e[1] += bv
+            if inprof:
+                pc = prof.get(R)
+                if pc is None:
+                    pc = prof[R] = [0.0, 0.0]
+                pc[0] += sv
+                pc[1] += bv
+    return subs, prof
+
+
 def aggregate(atoms, tf, stepc, t0, t1, sess):
     """atoms of one hour -> ({sub_t: [o, h, l, c, sell, buy, {row: [s, b]}]}, profile {row: [s, b]})"""
     subs, prof, tfm = {}, {}, tf * 60000
@@ -176,7 +261,7 @@ def flat_rows(cells):
     return out
 
 
-def fp_candles(tf, step, frm, until, sess):
+def fp_candles(tf, step, frm, until, sess, x=False):
     """Footprint candles of tf minutes (must divide 60) and $step rows for [frm, until), plus the volume profile of
     [sess, until). Candle: [t, o, h, l, c, sell, buy, first_row, sell, buy, sell, buy, ...]; profile:
     [first_row, sell, buy, ...]; rows are price/step (row r = r*step .. (r+1)*step)."""
@@ -220,25 +305,53 @@ def fp_candles(tf, step, frm, until, sess):
                 _agg_cache[(h, tf, stepc)] = (token, subs, hprof)
                 while len(_agg_cache) > 20000:
                     _agg_cache.popitem(last=False)
+        xsubs, xprof = {}, {}
+        if x:
+            xhit = _agg_cache.get((h, tf, stepc, "x")) if full else None
+            xatoms, xtoken = (None, None)
+            if full:
+                xatoms, xtoken = hour_xatoms(h, now_ms)
+                if xhit and xhit[0] != xtoken:
+                    xhit = None
+            if xhit:
+                xsubs, xprof = xhit[1], xhit[2]
+            else:
+                if xatoms is None:
+                    xatoms, xtoken = hour_xatoms(h, now_ms)
+                xsubs, xprof = aggregate_x(xatoms, tf, stepc, h, until, 0 if full else sess)
+                if full and xtoken is not None:
+                    _agg_cache[(h, tf, stepc, "x")] = (xtoken, xsubs, xprof)
         for k in sorted(subs):
             if k < frm:
                 continue
             o, hi, lo, c, sv, bv, cells = subs[k]
+            xe = xsubs.get(k)
+            if xe:
+                cells = {r: [v[0], v[1]] for r, v in cells.items()}
+                for r, (xs, xb) in xe[2].items():
+                    cc = cells.get(r)
+                    if cc is None:
+                        cells[r] = [xs, xb]
+                    else:
+                        cc[0] += xs
+                        cc[1] += xb
+                sv, bv = sv + xe[0], bv + xe[1]
             out.append([k, o, hi, lo, c, round(sv, 3), round(bv, 3)] + flat_rows(cells))
             if first is None:
                 first = k
         if (h >= sess) if full else (he > sess):
-            for R, (sv, bv) in hprof.items():
-                pc = prof.get(R)
-                if pc is None:
-                    pc = prof[R] = [0.0, 0.0]
-                pc[0] += sv
-                pc[1] += bv
+            for src in ((hprof, xprof) if x else (hprof,)):
+                for R, (sv, bv) in src.items():
+                    pc = prof.get(R)
+                    if pc is None:
+                        pc = prof[R] = [0.0, 0.0]
+                    pc[0] += sv
+                    pc[1] += bv
             if hprof and pfrom is None:
                 pfrom = max(sess, h)
         h = he
     return {"tf": tf, "step": step, "from": frm, "until": until, "first": first, "pfrom": pfrom,
-            "c": out, "p": flat_rows(prof)}
+            "c": out, "p": flat_rows(prof), "x": 1 if x else 0}
 
 
 _secs_cache = OrderedDict()            # (day, hh) -> (token, {sec: entry})   finished hours only
@@ -347,14 +460,47 @@ class Handler(BaseHTTPRequestHandler):
                 until = int(float(g("until", now)))
                 frm = int(float(g("from", until - 86400000)))
                 sess = int(float(g("sess", until)))
+                x = g("x", "0") == "1"
                 t = time.time()
                 with _fp_lock:
-                    d = fp_candles(tf, step, frm, until, sess)
+                    d = fp_candles(tf, step, frm, until, sess, x)
                 d["ms"] = round((time.time() - t) * 1000)
                 return self.send(200, json.dumps(d, separators=(",", ":")))
             self.send(404, '{"error":"not found"}')
         except Exception as e:
             self.send(500, json.dumps({"error": f"{type(e).__name__}: {e}"}))
+
+    def do_POST(self):
+        u = urlparse(self.path)
+        try:
+            if u.path != "/api/mt5":
+                return self.send(404, '{"error":"not found"}')
+            ln = int(self.headers.get("Content-Length") or 0)
+            if ln <= 0 or ln > 8192:
+                return self.send(400, '{"error":"bad length"}')
+            raw = self.rfile.read(ln).decode("utf-8", "replace").strip().strip("\x00")
+            d = json.loads(raw)
+            if hashlib.sha256(str(d.get("key", "")).encode()).hexdigest() != MT5_KEY_SHA:
+                return self.send(403, '{"error":"bad key"}')
+            bid, ask = float(d["bid"]), float(d["ask"])
+            if not (0 < bid <= ask < bid + 50):
+                return self.send(400, '{"error":"bad quote"}')
+            rec = {"recv": int(time.time() * 1000), "sym": str(d.get("sym", ""))[:20], "bid": bid, "ask": ask,
+                   "srv": str(d.get("srv", ""))[:30], "acct": str(d.get("acct", ""))[-4:], "x": {}}
+            for k, v in (d.get("x") or {}).items():
+                try:
+                    rec["x"][str(k)[:20]] = float(v)
+                except (TypeError, ValueError):
+                    pass
+            folder = os.path.join(WWW, "context")
+            os.makedirs(folder, exist_ok=True)
+            tmp = os.path.join(folder, "mt5.json.tmp")
+            with open(tmp, "w") as f:
+                json.dump(rec, f, separators=(",", ":"))
+            os.replace(tmp, os.path.join(folder, "mt5.json"))
+            return self.send(200, '{"ok":1}')
+        except Exception as e:
+            self.send(400, json.dumps({"error": f"{type(e).__name__}: {e}"}))
 
 
 if __name__ == "__main__":

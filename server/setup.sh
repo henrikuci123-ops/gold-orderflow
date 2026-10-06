@@ -6,6 +6,8 @@
 #       status.json      recorder health (updated every 30 s)
 #       data/XAUUSDT/... recorded trades + order book (gzipped per hour)
 #       updates.log      every code update the server applied
+#       multi.json       other exchanges' gold trades (multi.py): connections, gaps to Binance
+#       context/         yields + dollar index, economic calendar, gold options walls (context.py), MT5 quote (api.py)
 main() {
   set -u
   REPO=/opt/gof/repo
@@ -57,7 +59,7 @@ After=network-online.target
 
 [Service]
 User=gof
-Environment=GOF_DATA=$DATA
+Environment=GOF_DATA=$DATA GOF_STATUS=$WWW
 ExecStart=/usr/bin/python3 -u $REPO/server/api.py
 Restart=always
 RestartSec=5
@@ -96,6 +98,42 @@ ExecStart=/usr/bin/python3 -u $REPO/server/signals.py
 Restart=always
 RestartSec=10
 Nice=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  write_if_changed /etc/systemd/system/gof-multi.service <<EOF
+[Unit]
+Description=Gold order-flow: other exchanges' gold perpetual trades (Bybit, OKX, Bitget, Gate, MEXC) for the footprint
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gof
+Environment=GOF_DATA=$DATA GOF_STATUS=$WWW
+ExecStart=/usr/bin/python3 -u $REPO/server/multi.py
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  write_if_changed /etc/systemd/system/gof-context.service <<EOF
+[Unit]
+Description=Gold order-flow market context: US 10y yield + dollar index, economic calendar, gold options walls
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gof
+Environment=GOF_DATA=$DATA GOF_STATUS=$WWW
+ExecStart=/usr/bin/python3 -u $REPO/server/context.py
+Restart=always
+RestartSec=30
+Nice=10
 
 [Install]
 WantedBy=multi-user.target
@@ -164,12 +202,14 @@ EOF
   fi
 
   systemctl daemon-reload
-  systemctl enable --now gof-recorder.service gof-api.service gof-history.service gof-signals.service gof-update.timer caddy >/dev/null 2>&1
+  systemctl enable --now gof-recorder.service gof-api.service gof-history.service gof-signals.service gof-multi.service gof-context.service gof-update.timer caddy >/dev/null 2>&1
   if [ "${CHANGED_CADDY:-0}" = 1 ]; then systemctl reload caddy || systemctl restart caddy; fi
   if [ "${CHANGED_SERVICE:-0}" = 1 ]; then systemctl restart gof-recorder.service; fi
   if [ "${CHANGED_API:-0}" = 1 ]; then systemctl restart gof-api.service; fi
   if [ "${CHANGED_HIST:-0}" = 1 ]; then systemctl restart gof-history.service; fi
   if [ "${CHANGED_SIG:-0}" = 1 ]; then systemctl restart gof-signals.service; fi
+  if [ "${CHANGED_MULTI:-0}" = 1 ]; then systemctl restart gof-multi.service; fi
+  if [ "${CHANGED_CTX:-0}" = 1 ]; then systemctl restart gof-context.service; fi
   # absorption backtest: run once if there is no result yet (later runs: update.sh, when backtest.py / absorb.py change)
   if [ ! -f "$WWW/backtest/absorption.json" ]; then systemctl start --no-block gof-backtest.service; fi
   echo "setup done $(date -u '+%F %T') version $(cat /opt/gof/version.txt 2>/dev/null) address https://$host/"
@@ -189,6 +229,8 @@ write_if_changed() {
       */gof-api.service) CHANGED_API=1 ;;
       */gof-history.service) CHANGED_HIST=1 ;;
       */gof-signals.service) CHANGED_SIG=1 ;;
+      */gof-multi.service) CHANGED_MULTI=1 ;;
+      */gof-context.service) CHANGED_CTX=1 ;;
     esac
   fi
   rm -f "$tmp"

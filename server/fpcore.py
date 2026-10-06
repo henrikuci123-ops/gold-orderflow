@@ -153,3 +153,73 @@ def zip_hours(path):
                 cur.append((int(row[0]), t, cents(row[1]), float(row[2]), row[6].strip().lower() == "true"))
     if cur:
         yield cur_h, cur
+
+
+# ---------------------------------------------------------------- other exchanges (multi.py, Oct 2026)
+# Gold perpetuals on Bybit, OKX, Bitget, Gate and MEXC, recorded by multi.py with prices shifted onto Binance's price
+# (each exchange's small, slowly changing gap to Binance is measured and removed), so their volume can be added to the
+# Binance footprint.  <data>/XAUUSDT/YYYY-MM-DD/xtrades_HH.csv(.gz):  venue, time_ms, price (Binance terms), oz, sell, raw
+# Their atoms carry only volume: [t_ms, 0, 0, 0, 0, first_row, sell, buy, ...] - candle open/high/low/close stay Binance's.
+XVENUES = ("bybit", "okx", "bitget", "gate", "mexc")
+
+
+def xatoms_path(day, hh):
+    return os.path.join(BASE, SYMBOL, "atoms", day, f"{hh}.x.json.gz")
+
+
+def xtrade_files(day, hh):
+    d = rec_dir(day)
+    if not os.path.isdir(d):
+        return []
+    return [os.path.join(d, fn) for fn in sorted(os.listdir(d))
+            if fn.startswith(f"xtrades_{hh}") and fn.endswith((".csv", ".csv.gz"))]
+
+
+def read_xtrade_file(path):
+    out = []
+    opener = gzip.open if path.endswith(".gz") else open
+    try:
+        with opener(path, "rt", encoding="utf-8") as f:
+            for line in f:
+                parts = line.rstrip("\n").split(",")
+                if len(parts) < 5 or not parts[1].isdigit():
+                    continue
+                try:
+                    out.append((int(parts[1]), cents(parts[2]), float(parts[3]), parts[4] == "1"))
+                except ValueError:
+                    continue
+    except (OSError, EOFError):
+        pass
+    return out
+
+
+def recorded_xtrades(day, hh):
+    tr = []
+    for p in xtrade_files(day, hh):
+        tr += read_xtrade_file(p)
+    return tr
+
+
+def build_xatoms(trades):
+    """trades: iterable of (t_ms, price_cents, qty, sell) -> volume-only minute atoms"""
+    mins = {}
+    for t, pc, q, s in trades:
+        m = t - t % 60000
+        rows = mins.get(m)
+        if rows is None:
+            rows = mins[m] = {}
+        r = pc // BASEC
+        cell = rows.get(r)
+        if cell is None:
+            cell = rows[r] = [0.0, 0.0]
+        cell[0 if s else 1] += q
+    out = []
+    for m in sorted(mins):
+        rows = mins[m]
+        r0, r1 = min(rows), max(rows)
+        flat = [0] * (2 * (r1 - r0 + 1))
+        for r, (sv, bv) in rows.items():
+            flat[2 * (r - r0)] = round(sv, 3)
+            flat[2 * (r - r0) + 1] = round(bv, 3)
+        out.append([m, 0, 0, 0, 0, r0] + flat)
+    return out

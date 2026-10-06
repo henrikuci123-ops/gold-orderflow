@@ -30,6 +30,14 @@ main() {
     systemctl restart gof-signals.service
     echo "$(date -u '+%F %T') signals restarted" >> "$LOG"
   fi
+  if echo "$changed" | grep -Eq '^server/multi.py$'; then
+    systemctl restart gof-multi.service
+    echo "$(date -u '+%F %T') multi restarted" >> "$LOG"
+  fi
+  if echo "$changed" | grep -Eq '^server/(context|fpcore).py$'; then
+    systemctl restart gof-context.service
+    echo "$(date -u '+%F %T') context restarted" >> "$LOG"
+  fi
   if echo "$changed" | grep -Eq '^server/(backtest|absorb).py$'; then
     systemctl start --no-block gof-backtest.service
     echo "$(date -u '+%F %T') backtest started" >> "$LOG"
