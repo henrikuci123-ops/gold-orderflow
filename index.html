@@ -149,6 +149,7 @@ input[type=checkbox]{width:22px;height:22px}
   </div>
   <div id="srv" class="hidden">
     <div class="card"><h3>Recorder server (24/7)</h3><div id="srvState" class="bigst d">Checking…</div><div id="srvSub" class="d" style="font-size:12px"></div><table><tbody id="srvT"></tbody></table></div>
+    <div class="card"><h3>Other exchanges + market data</h3><div id="srvX" class="d" style="font-size:12px">—</div></div>
     <div class="card"><h3>Footprint history</h3><div id="srvFp" class="d">—</div></div>
     <div class="card"><h3>Order-book history in this app</h3><div id="srvHist" class="d">—</div></div>
     <div class="card"><h3>Server log</h3><pre id="srvLog"></pre></div>
@@ -163,6 +164,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Colours<small>tap a colour to change it — it changes straight away</small></label><button id="sColReset" class="mini">Reset colours</button></div>
   <div class="cgrid" id="sCols"></div>
   <div class="row"><label>Market<small>Binance perpetual futures</small></label><select id="sSym"><option value="XAUUSDT">XAUUSDT (gold)</option><option value="XAUTUSDT">XAUTUSDT (Tether gold)</option><option value="PAXGUSDT">PAXGUSDT (Pax gold)</option><option value="XAGUSDT">XAGUSDT (silver)</option></select></div>
+  <div class="row"><label>Exchanges<small id="sVenStat">Binance + Bybit, OKX, Bitget, Gate, MEXC gold perpetuals</small></label><select id="sVen"><option value="all">All 6 exchanges (more volume)</option><option value="bin">Binance only</option></select></div>
   <div class="row"><label>Volume shown in</label><select id="sUnit"><option value="lots">MT5 lots (100 oz = 1 lot)</option><option value="oz">Ounces</option></select></div>
   <div class="row"><label>Footprint candle</label><select id="sTf"><option value="1">1 min</option><option value="2">2 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option><option value="240">4 hours (MT5 times)</option><option value="1440">Daily (MT5 days)</option></select></div>
   <div class="row"><label>Footprint row size<small>$ of gold per row</small></label><select id="sStep"><option value="0.1">$0.10</option><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option><option value="2">$2</option><option value="5">$5</option><option value="10">$10</option><option value="20">$20</option></select></div>
@@ -182,6 +184,8 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="row"><label>Look for walls within</label><select id="sWrange"><option value="5">$5 of price</option><option value="10">$10 of price</option><option value="20">$20 of price</option></select></div>
   <div class="row"><label>Wall zone height</label><select id="sWstep"><option value="0.25">$0.25</option><option value="0.5">$0.50</option><option value="1">$1</option></select></div>
   <div class="row"><label>Alert when price nears a wall</label><select id="sWalert"><option value="0">Off</option><option value="1">On</option></select></div>
+  <div class="row"><label>News lines<small>US economic events (medium + high impact) as lines on the charts, next one shown at the top</small></label><select id="sNews"><option value="1">Show</option><option value="0">Hide</option></select></div>
+  <div class="row"><label>Options walls (GEX)<small>call wall / put wall / gamma flip from gold (GLD) options — big option positions often stall or pull price</small></label><select id="sGex"><option value="1">Show</option><option value="0">Hide</option></select></div>
   <div class="row"><label>Sound + vibration on signals</label><input id="sSnd" type="checkbox"></div>
   <div class="btns"><button id="sCancel">Cancel</button><button id="sOk" class="pri">Apply</button></div>
   <div class="help">
@@ -191,6 +195,9 @@ input[type=checkbox]{width:22px;height:22px}
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%) — lines are drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (blue) or sell (orange) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
+    <b>Exchanges:</b> by default the footprint, value areas, delta and live absorption add the gold perpetual trades of Bybit, OKX, Bitget, Gate and MEXC to Binance's (prices moved onto Binance's by their measured gap) — about 70% more volume. Candle prices and the order book stay Binance's. Settings → Exchanges → Binance only switches it off.<br>
+    <b>Top line:</b> US 10-year yield and dollar index (green = falling = usually good for gold, red = rising), the options gamma regime (gamma− = moves tend to run, gamma+ = tend to calm down) and the next US news. <b>News lines</b> (red = high impact, orange = medium) mark the events on the charts. <b>Options walls</b>: CALL wall (often caps rallies), PUT wall (often supports dips), GAMMA FLIP (above it moves calm down, below they run) — from GLD options, refreshed every 15 min in US hours.<br>
+    <b>MT5 prices:</b> with the GoldPriceBridge EA running in your MT5, the app takes the price gap straight from your MT5 (exact); without it, from Binance's spot-gold index.<br>
     Data: Binance gold perpetual (real exchange trades and order book). Its price is close to, not equal to, your MT5 XAUUSD: by default the app converts to MT5 prices automatically while the gold market is open (from Binance's spot-gold index) and freezes the gap on weekends. Drag the chart to move it. <b>Drag the price scale (right edge) up/down</b> to make candles taller/shorter, <b>drag the time strip (bottom) left/right</b> to make them wider/narrower — like MT5. When you zoom out, rows are merged into bigger round $ rows (e.g. $0.50 → $2.50, shown as "rows $2.5 auto" at the top) so the numbers stay readable; zoom in for the fine rows again (Settings → Bigger rows when zoomed out). Double-tap the price scale to reset. LIVE = follow the price.
   </div>
 </div></div>
@@ -203,7 +210,7 @@ const WS_MARKET = 'wss://fstream.binance.com/market/stream?streams=';
 const WS_PUBLIC = 'wss://fstream.binance.com/public/stream?streams=';
 const TZ = 'Europe/Tirane';
 const LS = 'gof.settings.v1';
-const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, vaAbsQ: 0.6, liveAbsK: 1.2, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0};
+const DEF = {theme: 'light', fpCol: 'bo', vaTf: 15, vaDelta: 1, vaNum: 0, vaAbsQ: 0.6, liveAbsK: 1.2, autoRows: 1, stepTf: {}, hmm: 'candles', hmPal: 'bookmap', hmGain: 50, hmFloor: 2, setv: 2, bub: 1, bubSize: 100, bubMin: 10, vbars: 1, cob: 1, svp: 1, sym: 'XAUUSDT', tf: 5, step: 0.5, hstep: 0.25, imb: 3, absK: 2.5, big: 25, offset: 0, offMode: 'auto', offAdj: 0, autoOff: null, autoOffT: 0, backfill: 60, sound: true, tab: 'fp', unit: 'lots', walls: 1, wmult: 3, wrange: 10, wpers: 60, wstep: 0.5, walert: 0, venues: 'all', news: 1, gex: 1};
 const MINIMB = 3;            // a row needs at least this many oz to count as an imbalance
 const HMR = 30;              // heatmap keeps the book +-$30 around the price
 const MAXCOLS = 7200;        // heatmap history: up to 2 hours of 1-second columns (server history: 2-second columns)
@@ -286,7 +293,7 @@ let prof = new Map(), sessBuy = 0, sessSell = 0, sessStart = 0, nextSess = 0;
 let klines = [];
 let secs = new Map();
 let cols = [];
-let lastPrice = 0, lastId = 0, filling = false, pending = [];
+let lastPrice = 0, lastId = 0, filling = false, pending = [], binAt = 0;
 let signals = [];
 let dirty = true, loading = '';
 const book = {b: new Map(), a: new Map(), state: 'wait', buf: [], last: 0, pu: 0, bb: 0, ba: 0};
@@ -330,7 +337,27 @@ function goldOpen(ms) {          // CME/OTC gold hours: Sunday 18:00 - Friday 17
   return h !== 17;
 }
 let offLive = false;
+let mt5B = null;                 // last quote from the GoldPriceBridge EA in Henri's MT5 (via our server)
+const bridgeLive = () => mt5B && mt5B.fresh && Date.now() - mt5B.at < 20000;
+async function pollBridge() {
+  if (document.visibilityState !== 'visible' || S.sym !== 'XAUUSDT') return;
+  try {
+    const r = await fetchT(`${SERVER}/context/mt5.json?${Date.now()}`, {cache: 'no-store'}, 8000);
+    if (!r.ok) { mt5B = null; return; }
+    const d = await r.json(), now = Date.now();
+    const fresh = now - d.recv < 15000 && (d.age || 0) < 180 && goldOpen(now) && lastPrice && now - binAt < 5000;
+    mt5B = Object.assign({}, d, {fresh: false, at: now});
+    if (!fresh) return;
+    const gap = lastPrice - d.bid;                 // Binance last trade - MT5 bid (MT5 charts show the bid)
+    if (!(Math.abs(gap) < 30)) return;
+    mt5B.fresh = true;
+    const same = S.autoOffSrc === 'mt5' && S.autoOff != null && now - (S.autoOffT || 0) < 60000;
+    S.autoOff = Math.round((same ? S.autoOff + 0.25 * (gap - S.autoOff) : gap) * 100) / 100;
+    S.autoOffSrc = 'mt5'; S.autoOffT = now; offLive = true; saveS(); dirty = true;
+  } catch (e) {}
+}
 async function pollIndex() {
+  if (bridgeLive()) return;                      // your MT5 is sending its price: that is exact
   offLive = false;
   if (!goldOpen(Date.now())) return;
   try {
@@ -338,9 +365,9 @@ async function pollIndex() {
     const mark = +d.markPrice, idx = +d.indexPrice;
     if (!(mark > 0 && idx > 0)) return;
     const gap = mark - idx;
-    const fresh = Date.now() - (S.autoOffT || 0) > 30 * 60000 || S.autoOff == null;   // first reading after a pause: take it as is
+    const fresh = Date.now() - (S.autoOffT || 0) > 30 * 60000 || S.autoOff == null || S.autoOffSrc === 'mt5';   // first reading after a pause / switch: take it as is
     S.autoOff = Math.round((fresh ? gap : S.autoOff + 0.15 * (gap - S.autoOff)) * 100) / 100;
-    S.autoOffT = Date.now(); offLive = true; saveS(); dirty = true;
+    S.autoOffSrc = 'index'; S.autoOffT = Date.now(); offLive = true; saveS(); dirty = true;
   } catch (e) {}
 }
 function offStatus() {
@@ -348,7 +375,8 @@ function offStatus() {
   if (S.offMode === 'manual') return `own offset ${(S.offset || 0).toFixed(2)}`;
   if (S.autoOff == null) return 'automatic — waits for the gold market to open';
   const when = S.autoOffT ? tFmt.format(S.autoOffT) : '';
-  return `automatic: Binance − MT5 = ${S.autoOff.toFixed(2)}` + (offLive ? ' (live)' : ` (frozen since ${when} — gold market closed)`);
+  const src = bridgeLive() ? 'from your MT5 (GoldPriceBridge)' : "from Binance's spot index";
+  return `automatic ${src}: Binance − MT5 = ${S.autoOff.toFixed(2)}` + (offLive || bridgeLive() ? ' (live)' : ` (frozen since ${when} — gold market closed)`);
 }
 const tFmt = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false});
 const tFmtS = new Intl.DateTimeFormat('en-GB', {timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
@@ -409,13 +437,13 @@ function addTrade(i, cand = true) {       // cand = false: trade is already insi
   o.last = p;
   lastPrice = p;
 }
-function addTradeCandle(T, p, q, m) {
+function addTradeCandle(T, p, q, m, vonly = false) {     // vonly: other exchange - adds volume, not prices
   checkSession(T);
   const c = candleFor(T);
   if (c.lite && c.cells.size === 0 && !isNaN(c.o)) c.partial = true;   // started from 1-min data, rows only from here on
   c.lite = false;
-  if (isNaN(c.o)) c.o = p;
-  c.c = p; if (p > c.h) c.h = p; if (p < c.l) c.l = p;
+  if (isNaN(c.o)) { c.o = p; c.c = p; c.h = p; c.l = p; }
+  if (!vonly) { c.c = p; if (p > c.h) c.h = p; if (p < c.l) c.l = p; }
   const r = rowOf(p);
   let cell = c.cells.get(r); if (!cell) { cell = [0, 0]; c.cells.set(r, cell); }
   if (m) { cell[0] += q; c.sell += q; } else { cell[1] += q; c.buy += q; }
@@ -426,7 +454,7 @@ function addTradeCandle(T, p, q, m) {
 }
 // footprint candles from the server: [t, o, h, l, c, sell, buy, first_row, sell, buy, ...] + session profile
 let srvFP = null, fpInfo = {state: 'not loaded'}, profCut = Infinity, fpGen = 0;
-function fpUsable() { return srvFP && srvFP.tfReq === subTf() && srvFP.stepReq === S.step && srvFP.symReq === S.sym ? srvFP : null; }
+function fpUsable() { return srvFP && srvFP.tfReq === subTf() && srvFP.stepReq === S.step && srvFP.symReq === S.sym && srvFP.xReq === useX() ? srvFP : null; }
 function applySrvFP(d) {
   for (const a of d.c) {
     const c = candleFor(a[0]);
@@ -450,13 +478,13 @@ function applySrvFP(d) {
 async function loadFP(until) {
   if (S.sym !== 'XAUUSDT') { fpInfo = {state: 'the server records XAUUSDT only'}; return false; }
   const sub = subTf(), from = until - (FPH[S.tf] || 24) * 3600000, t0 = Date.now(), step = S.step, sym = S.sym;
-  fpInfo = {state: 'loading…'};
+  fpInfo = {state: 'loading…'}; const xreq = useX();
   try {
-    const r = await fetchT(`${SERVER}/api/fp?tf=${sub}&step=${step}&from=${from}&until=${until}&sess=${sessStart}`, {cache: 'no-store'}, 45000);
+    const r = await fetchT(`${SERVER}/api/fp?tf=${sub}&step=${step}&from=${from}&until=${until}&sess=${sessStart}${useX() ? '&x=1' : ''}`, {cache: 'no-store'}, 45000);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
-    d.tfReq = sub; d.stepReq = step; d.symReq = sym;
+    d.tfReq = sub; d.stepReq = step; d.symReq = sym; d.xReq = xreq;
     srvFP = d;
     fpInfo = {state: 'ok', n: d.c.length, first: d.first, until: d.until, ms: Date.now() - t0, kb: 0};
     return true;
@@ -486,6 +514,7 @@ function rebuildAll() {
   for (const K of klines) { if (K[0] >= kCut) break; addKline(K); }
   if (fp) applySrvFP(fp);
   for (let i = 0; i < n; i++) addTrade(i, tT[i] >= split);
+  xSplit = split; for (let j = 0; j < xn; j++) addXTrade(j); xRebuilt = xn;
   const ks = sortedKeys();
   for (let j = 0; j < ks.length - 1; j++) { const c = candles.get(ks[j]); c.done = true; c.sig = analyze(c); }
   dirty = true;
@@ -634,7 +663,7 @@ function connect() {
   wsBk.onerror = () => { try { wsBk.close(); } catch (e) {} };
 }
 function ingest(d) {
-  pushTrade(d.a, d.T, +d.p, +d.q, d.m ? 1 : 0); lastId = d.a;
+  pushTrade(d.a, d.T, +d.p, +d.q, d.m ? 1 : 0); lastId = d.a; binAt = Date.now();
   const prevKey = sortedKeys().length ? sortedKeys()[sortedKeys().length - 1] : null;
   addTrade(n - 1);
   if (prevKey !== null && candles.get(prevKey) && !candles.get(prevKey).done) {
@@ -676,12 +705,169 @@ function pruneSecs() {
   for (const k of [...hsecs.keys()]) if (k < lim) hsecs.delete(k);
   for (const k of secs.keys()) { if (k < lim) secs.delete(k); else break; }
 }
+// ---------------------------------------------------------------- other exchanges (live): Bybit, OKX, Bitget, Gate, MEXC
+// Their gold perpetual trades are added to the footprint / value areas / delta as volume (candle prices stay Binance's).
+// Each exchange trades a little above/below Binance: that gap is measured against Binance's last trade and taken off.
+const XV = {
+  bybit: {url: 'wss://stream.bybit.com/v5/public/linear', every: 20000, sub: () => ({op: 'subscribe', args: ['publicTrade.XAUUSDT']}), ping: () => JSON.stringify({op: 'ping'}),
+    parse: m => String(m.topic || '').startsWith('publicTrade') ? (m.data || []).map(d => [+d.T, +d.p, +d.v, d.S === 'Sell']) : []},
+  okx: {url: 'wss://ws.okx.com:8443/ws/v5/public', every: 25000, sub: () => ({op: 'subscribe', args: [{channel: 'trades', instId: 'XAU-USDT-SWAP'}]}), ping: () => 'ping',
+    parse: m => m.arg && m.arg.channel === 'trades' && m.data ? m.data.map(d => [+d.ts, +d.px, +d.sz * 0.001, d.side === 'sell']) : []},
+  bitget: {url: 'wss://ws.bitget.com/v2/ws/public', every: 25000, sub: () => ({op: 'subscribe', args: [{instType: 'USDT-FUTURES', channel: 'trade', instId: 'XAUUSDT'}]}), ping: () => 'ping',
+    parse: m => m.arg && m.arg.channel === 'trade' && m.action === 'update' ? (m.data || []).map(d => [+d.ts, +d.price, +d.size, d.side === 'sell']) : []},
+  gate: {url: 'wss://fx-ws.gateio.ws/v4/ws/usdt', every: 20000, sub: () => ({time: Math.floor(Date.now() / 1000), channel: 'futures.trades', event: 'subscribe', payload: ['XAU_USDT']}),
+    ping: () => JSON.stringify({time: Math.floor(Date.now() / 1000), channel: 'futures.ping'}),
+    parse: m => m.channel === 'futures.trades' && m.event === 'update' ? (m.result || []).map(d => [Math.round(+(d.create_time_ms || d.create_time * 1000)), +d.price, Math.abs(+d.size) * 0.0001, +d.size < 0]) : []},
+  mexc: {url: 'wss://contract.mexc.com/edge', every: 15000, sub: () => ({method: 'sub.deal', param: {symbol: 'XAU_USDT'}}), ping: () => JSON.stringify({method: 'ping'}),
+    parse: m => { if (m.channel !== 'push.deal') return []; const a = Array.isArray(m.data) ? m.data : m.data ? [m.data] : []; return a.map(d => [+d.t, +d.p, +d.v * 0.001, +d.T === 2]); }},
+};
+const XNAME = {bybit: 'Bybit', okx: 'OKX', bitget: 'Bitget', gate: 'Gate', mexc: 'MEXC'};
+const xs = {}; for (const v in XV) xs[v] = {ws: null, timer: 0, basis: null, samples: [], basisT: 0, n: 0, oz: 0, retry: 1000, lastAt: 0};
+let xGen = 0, xSplit = Infinity, xRebuilt = 0, xcap = 1 << 15, xn = 0;
+let xT = new Float64Array(xcap), xP = new Float64Array(xcap), xQ = new Float32Array(xcap), xM = new Uint8Array(xcap);
+const useX = () => S.venues !== 'bin' && S.sym === 'XAUUSDT';
+function xPush(T, p, q, m) {
+  if (xn >= xcap) {
+    if (xn > 400000) { const keep = 240000, s0 = xn - keep; xT.copyWithin(0, s0, xn); xP.copyWithin(0, s0, xn); xQ.copyWithin(0, s0, xn); xM.copyWithin(0, s0, xn); xn = keep; }
+    else { xcap *= 2; const g = (a, Ty) => { const b = new Ty(xcap); b.set(a); return b; }; xT = g(xT, Float64Array); xP = g(xP, Float64Array); xQ = g(xQ, Float32Array); xM = g(xM, Uint8Array); }
+  }
+  xT[xn] = T; xP[xn] = p; xQ[xn] = q; xM[xn] = m; xn++;
+}
+function addXTrade(j) {
+  const T = xT[j]; if (T < xSplit) return;               // already inside the server's footprint history
+  vaXTrade(T, xP[j], xQ[j], xM[j]);
+  addTradeCandle(T, xP[j], xQ[j], xM[j], true);
+}
+function onXTrades(v, arr) {
+  const s = xs[v], now = Date.now();
+  for (const [T, p, q, sell] of arr) {
+    if (!(q > 0 && p > 0 && T > 0)) continue;
+    s.lastAt = now;
+    if (lastPrice && now - binAt < 3000) {               // measure this exchange's gap to Binance
+      const gap = p - lastPrice;
+      if (Math.abs(gap) < 25) {
+        if (s.basis == null) { s.samples.push(gap); if (s.samples.length >= 20) { const sm = s.samples.slice().sort((a, b) => a - b); s.basis = sm[sm.length >> 1]; s.samples = []; } }
+        else if (now - s.basisT >= 500) { s.basis += 0.02 * (gap - s.basis); s.basisT = now; }
+      }
+    }
+    if (s.basis == null) continue;
+    const pn = Math.round((p - s.basis) * 100) / 100;
+    if (lastPrice && Math.abs(pn - lastPrice) > 25) continue;
+    xPush(T, pn, q, sell ? 1 : 0); s.n++; s.oz += q;
+    if (!filling) addXTrade(xn - 1);
+  }
+  dirty = true;
+}
+function xConnect(v, g) {
+  const cfg = XV[v], s = xs[v];
+  let ws; try { ws = new WebSocket(cfg.url); } catch (e) { return; }
+  s.ws = ws;
+  ws.onopen = () => { if (g !== xGen) return; s.retry = 1000; try { ws.send(JSON.stringify(cfg.sub())); } catch (e) {} clearInterval(s.timer); s.timer = setInterval(() => { try { ws.send(cfg.ping()); } catch (e) {} }, cfg.every); };
+  ws.onmessage = ev => { if (g !== xGen || typeof ev.data !== 'string' || (ev.data[0] !== '{' && ev.data[0] !== '[')) return; let m; try { m = JSON.parse(ev.data); } catch (e) { return; } try { const tr = cfg.parse(m); if (tr.length) onXTrades(v, tr); } catch (e) {} };
+  ws.onclose = () => { clearInterval(s.timer); if (g !== xGen) return; s.ws = null; setTimeout(() => { if (g === xGen) xConnect(v, g); }, s.retry); s.retry = Math.min(s.retry * 2, 60000); };
+  ws.onerror = () => { try { ws.close(); } catch (e) {} };
+}
+function xStop() { xGen++; for (const v in XV) { const s = xs[v]; clearInterval(s.timer); try { if (s.ws) s.ws.close(); } catch (e) {} s.ws = null; } }
+function xStart() { xStop(); if (!useX()) return; const g = xGen; for (const v in XV) xConnect(v, g); }
+function xUp() { return Object.values(xs).filter(s => s.ws && s.ws.readyState === 1 && Date.now() - s.lastAt < 120000).length; }
+function xStatus() {
+  if (!useX()) return 'Binance only';
+  const names = Object.keys(XV).map(v => { const s = xs[v], ok = s.ws && s.ws.readyState === 1; return `${XNAME[v]} ${ok ? (s.basis != null ? (s.basis >= 0 ? '+' : '') + s.basis.toFixed(2) : '…') : '✕'}`; });
+  return `Binance + ${xUp()} of 5 live (gap to Binance): ${names.join(' · ')}`;
+}
+setInterval(() => {                      // watchdog: an exchange silent for 3 min while the app is open -> reconnect it
+  if (document.visibilityState !== 'visible' || !useX() || loading) return;
+  for (const v in XV) { const s = xs[v]; if (!s.ws || s.ws.readyState > 1) continue; if (s.lastAt && Date.now() - s.lastAt > 180000) { s.lastAt = Date.now(); try { s.ws.close(); } catch (e) {} } }
+}, 30000);
+
+// ---------------------------------------------------------------- market context from our server: yields, dollar, news, options walls
+const CTX = {macro: null, cal: null, gex: null, st: null};
+async function loadCtx(what) {
+  try {
+    const r = await fetchT(`${SERVER}/context/${what}.json?${Date.now()}`, {cache: 'no-store'}, 15000);
+    if (!r.ok) return;
+    const d = await r.json();
+    CTX[{macro: 'macro', calendar: 'cal', gex: 'gex', status: 'st'}[what]] = d; dirty = true;
+  } catch (e) {}
+}
+function ctxPoll() { if (document.visibilityState !== 'visible') return; loadCtx('macro'); }
+setInterval(ctxPoll, 30000);
+setInterval(() => { if (document.visibilityState === 'visible') { loadCtx('calendar'); loadCtx('gex'); } }, 600000);
+setTimeout(() => { loadCtx('macro'); loadCtx('calendar'); loadCtx('gex'); }, 800);
+function nextEvent(now) { const ev = CTX.cal && CTX.cal.events || []; return ev.find(e => e.t > now - 60000 && e.impact !== 'Holiday') || null; }
+function inFmt(ms) { const m = Math.max(0, Math.round(ms / 60000)); return m < 60 ? m + 'm' : m < 1440 ? Math.floor(m / 60) + 'h ' + (m % 60) + 'm' : Math.floor(m / 1440) + 'd ' + Math.floor((m % 1440) / 60) + 'h'; }
+function tag(t, x, y, col, rot) {         // small label on a solid background (readable on the heatmap too)
+  const w = ctx.measureText(t).width;
+  ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(Math.PI / 2);
+  ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(C.bg) ? `rgba(${hexRgb(C.bg)},.86)` : C.bg; ctx.fillRect(-3, -8, w + 6, 16);
+  ctx.fillStyle = col; ctx.fillText(t, 0, 0.5); ctx.restore();
+  return w;
+}
+function drawCtxLine(x1, y = 56) {       // one line on the chart: yields, dollar, gamma regime, next news
+  const parts = [], m = CTX.macro, now = Date.now();
+  if (m && m.us10y && m.us10y.last != null && now - m.updated < 30 * 60000) {
+    const b = m.us10y.chg_bp || 0; parts.push([`10Y ${m.us10y.last.toFixed(2)}% ${b > 0 ? '▲' : b < 0 ? '▼' : ''}${Math.abs(b).toFixed(1)}bp`, b > 0 ? C.dn : b < 0 ? C.up : C.dim]);
+    const pc = m.dxy && m.dxy.pct || 0; if (m.dxy && m.dxy.last != null) parts.push([`DXY ${m.dxy.last.toFixed(2)} ${pc > 0 ? '▲' : pc < 0 ? '▼' : ''}${Math.abs(pc).toFixed(2)}%`, pc > 0 ? C.dn : pc < 0 ? C.up : C.dim]);
+  }
+  if (S.news) { const e = nextEvent(now); if (e) parts.push([e.t > now ? `${e.title} in ${inFmt(e.t - now)}` : `${e.title} NOW`, e.impact === 'High' ? '#e53935' : '#fb8c00']); }
+  if (S.gex && CTX.gex && now - CTX.gex.updated < 36 * 3600000) parts.push([CTX.gex.regime === 'negative' ? 'gamma− moves run' : 'gamma+ calmer', C.dim]);
+  if (!parts.length) { CTX.bottom = 0; return; }
+  ctx.font = 'bold 11px -apple-system,BlinkMacSystemFont,sans-serif'; ctx.textBaseline = 'middle';
+  const step = y < 100 ? 18 : -18;          // narrow screen: a 2nd row (below at the top, above at the bottom)
+  let x = 10, row = 0;
+  for (const [t, col] of parts) {
+    const w = ctx.measureText(t).width;
+    if (x + w > x1 - 6 && x > 10) { if (row) continue; row = 1; x = 10; }
+    tag(t, x, y + row * step, col); x += w + 14;
+  }
+  CTX.bottom = y < 100 ? y + row * step + 9 : 0;     // top of the free chart area (for walls / news labels)
+  ctx.textBaseline = 'alphabetic';
+}
+function gexLevels() {
+  const g = CTX.gex; if (!S.gex || !g || Date.now() - g.updated > 36 * 3600000) return [];
+  const out = [];
+  if (g.call_wall) out.push({p: g.call_wall.gold, t: 'CALL wall', col: '#e53935'});
+  if (g.put_wall) out.push({p: g.put_wall.gold, t: 'PUT wall', col: '#2e7d32'});
+  if (g.flip) out.push({p: g.flip.gold, t: 'GAMMA FLIP', col: '#8e24aa', dash: [2, 3]});
+  return out;
+}
+function drawGex(yOf, x1, plotH) {       // options walls as horizontal lines across the chart
+  const lv = gexLevels(); if (!lv.length) return;
+  ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textBaseline = 'middle';
+  for (const l of lv) {
+    const y = Math.round(yOf(l.p)) + 0.5; if (y < 2 || y > plotH - 2) continue;
+    ctx.strokeStyle = l.col; ctx.globalAlpha = 0.75; ctx.lineWidth = 1.5; ctx.setLineDash(l.dash || [8, 5]);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1; ctx.globalAlpha = 1;
+    const top = Math.max(74, (CTX.bottom || 0) + 11);                 // keep clear of the zoom buttons + context line
+    let ly = y - 9; if (ly < top) ly = y + 11; if (ly < top) ly = top;
+    tag(`${l.t} ${fmtP(l.p)}`, 10, ly, l.col);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+function drawNews(xAt, plotH, x0, x1) {  // xAt(t) -> screen x or null; vertical lines at the US events in view
+  if (!S.news || !CTX.cal) return;
+  ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textBaseline = 'middle';
+  let lastLbl = -1e9; const top = Math.max(70, (CTX.bottom || 0) + 4);
+  for (const e of CTX.cal.events) {
+    if (e.impact === 'Holiday') continue;
+    const x = xAt(e.t); if (x == null || x < x0 || x > x1) continue;
+    const col = e.impact === 'High' ? '#e53935' : '#fb8c00', xx = Math.round(x) + 0.5;
+    ctx.strokeStyle = col; ctx.globalAlpha = 0.7; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(xx, top); ctx.lineTo(xx, plotH); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    if (xx - lastLbl > 16) {
+      const t = e.title.replace(/^(Prelim |Final |Core )/, '').slice(0, 24) + ' ' + tFmt.format(e.t);
+      tag(t, xx + 9, top + 8, col, true); lastLbl = xx;
+    }
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+
 async function start() {
   wsGen++; try { if (ws) ws.close(); } catch (e) {} try { if (wsBk) wsBk.close(); } catch (e) {}
   n = 0; lastId = 0; pending = []; filling = true; candles = new Map(); keysCache = null; cols = []; signals = []; lastPrice = 0; srvFP = null; fpGen++; vaReset();
+  xn = 0; xSplit = Infinity; for (const v in xs) { xs[v].n = 0; xs[v].oz = 0; }
   $('#hSym').textContent = S.sym;
   loading = 'loading history…'; status(loading, '#f59e0b'); dirty = true;
-  connect();
+  connect(); xStart();
   startGen++; histBusy = false; loadBookHistory(HIST_MIN);
   { const g0 = startGen; [25000, 70000].forEach(ms => setTimeout(() => { if (g0 === startGen) loadBookHistory(5); }, ms)); }
   try {
@@ -730,6 +916,8 @@ async function start() {
     rebuildAll();
   }
   filling = false;
+  for (let j = xRebuilt; j < xn; j++) addXTrade(j);   // other exchanges' trades that came in while the history was loading
+  xRebuilt = xn;
   const p = pending; pending = []; p.sort((x, y) => x.a - y.a);
   for (const d of p) onAgg(d);
   if (S.tab === 'va') loadVA();
@@ -783,13 +971,14 @@ async function loadBookHistory(minutes) {
     srvHist = {state: 'could not load (' + e.message + ') — live book only'};
   } finally { histBusy = false; renderSrv(); }
 }
-let srvHistJ = null;
+let srvHistJ = null, srvMulti = null;
 async function loadSrvStatus() {
   try {
     const r = await fetchT(`${SERVER}/status.json?${Date.now()}`, {cache: 'no-store'});
     srvStat = await r.json(); srvStat._at = Date.now();
   } catch (e) { srvStat = {_err: e.message, _at: Date.now()}; }
   try { const r = await fetchT(`${SERVER}/history.json?${Date.now()}`, {cache: 'no-store'}); if (r.ok) srvHistJ = await r.json(); } catch (e) {}
+  try { const r = await fetchT(`${SERVER}/multi.json?${Date.now()}`, {cache: 'no-store'}); if (r.ok) srvMulti = await r.json(); } catch (e) {}
   renderSrv();
 }
 function renderSrv() {
@@ -814,6 +1003,12 @@ function renderSrv() {
     $('#srvT').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
     $('#srvLog').textContent = (s.log || []).slice().reverse().join('\n');
   }
+  { const now = Date.now(), cx = CTX, mj = srvMulti, ago = t => t ? inFmt(now - t) + ' ago' : '—';
+    let h = `<b>In this app:</b> ${xStatus()}`;
+    if (mj && mj.venues) h += `<br><b>Server recording:</b> ` + Object.entries(mj.venues).map(([v, o]) => `${XNAME[v] || v} ${o.connected ? '✓' : '✕'}${o.trades_last_5min != null ? ' ' + o.trades_last_5min : ''}`).join(' · ') + ' (trades / 5 min)';
+    h += `<br><b>Yields + dollar:</b> ${cx.macro ? ago(cx.macro.updated) : 'not loaded'} · <b>News:</b> ${cx.cal ? cx.cal.events.length + ' US events, ' + ago(cx.cal.updated) : 'not loaded'} · <b>Options walls:</b> ${cx.gex ? `call ${fmtP(cx.gex.call_wall.gold)} / put ${fmtP(cx.gex.put_wall.gold)}` + (cx.gex.flip ? ` / flip ${fmtP(cx.gex.flip.gold)}` : '') + `, ${ago(cx.gex.updated)}` : 'not loaded'}`;
+    h += `<br><b>MT5 bridge:</b> ${mt5B ? (bridgeLive() ? `live — MT5 bid ${mt5B.bid}, gap ${S.autoOff}` : `last quote ${ago(mt5B.recv)}${mt5B.age > 180 ? ' (MT5 market closed)' : ''}`) : 'not running (GoldPriceBridge EA not attached in MT5)'}`;
+    $('#srvX').innerHTML = h; }
   const f = fpInfo, hj = srvHistJ;
   const days = hj && hj.zip_days ? hj.zip_days.length : null;
   $('#srvFp').innerHTML = (f.state !== 'ok' ? f.state :
@@ -1009,9 +1204,15 @@ function drawFP() {
     for (const p of [(va.vah + 1) * step, va.val * step]) { const y = Math.round(yOf(p)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); }
     ctx.setLineDash([]); ctx.strokeStyle = C.pocLine; const y = Math.round(yOf((va.poc + 0.5) * step)) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke();
   }
+  drawGex(yOf, x1, plotH);
   lastLine(yOf, x1, plotH);
   for (const {c, x} of vis) drawCandleFP(c, x, colW, yOf, drowH, maxCell, plotH, mk);
   drawWalls(yOf, x1, plotH, 'label');
+  if (vis.length) {                                // news: candle of the event (future ones right of the newest candle)
+    const tfm = S.tf * 60000, lastK = ks[ks.length - 1 - off], xLast = vis[0].x;
+    drawNews(t => { const k = tfKey(t); if (S.tf >= 1440) return null; const j = (k - lastK) / tfm; return xLast + j * colW + colW * ((t - k) / tfm); }, plotH, 0, x1);
+  }
+  drawCtxLine(x1);
   ctx.restore();
   const pk = rowMerge(rowH, 3);                     // the profile has no numbers: it keeps fine rows down to 3 px
   drawProfile(x1, VPW, yOf, rowH * pk, plotH, va, pk);
@@ -1383,6 +1584,9 @@ function drawHM2(LUTh) {
     const y = Math.round(yOf(lastPrice)) + 0.5;
     ctx.strokeStyle = HMPAL[hmPal()].dark ? 'rgba(255,255,255,.85)' : 'rgba(19,23,34,.8)'; ctx.setLineDash([6, 4]); ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(x1, y); ctx.stroke(); ctx.setLineDash([]);
   }
+  drawGex(yOf, x1, plotH);
+  drawNews(t => xOf(t / 1000), plotH, 0, x1);
+  drawCtxLine(x1);
   ctx.restore();
   // COB: the order book right now, asks red above, bids green below, with sizes
   const xb = x1;
@@ -1507,7 +1711,7 @@ async function loadVA() {
   va.busy = true; va.err = ''; va.ready = false; dirty = true; renderTools();
   const now = Date.now(), until = n ? Math.ceil(tT[0] / 60000) * 60000 : now - now % 60000, from = until - cfg.h * 3600000;
   try {
-    const r = await fetchT(`${SERVER}/api/fp?tf=${sub}&step=${cfg.step}&from=${from}&until=${until}&sess=${until}`, {cache: 'no-store'}, 60000);
+    const r = await fetchT(`${SERVER}/api/fp?tf=${sub}&step=${cfg.step}&from=${from}&until=${until}&sess=${until}${useX() ? '&x=1' : ''}`, {cache: 'no-store'}, 60000);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
@@ -1525,6 +1729,7 @@ async function loadVA() {
     }
     va.ready = true;
     for (let i = 0; i < n; i++) vaTrade(i);              // trades since the server history ended (already in this app)
+    for (let j = 0; j < xn; j++) vaXTrade(xT[j], xP[j], xQ[j], xM[j]);
   } catch (e) { if (g === va.gen) va.err = 'could not load (' + e.message + ')'; }
   if (g === va.gen) { va.busy = false; dirty = true; renderTools(); }
 }
@@ -1537,6 +1742,13 @@ function vaTrade(i) {                        // every live trade also goes into 
   c.c = p; if (p > c.h) c.h = p; if (p < c.l) c.l = p;
   const r = Math.floor(p / va.step + 1e-7); let e = c.cells.get(r); if (!e) { e = [0, 0]; c.cells.set(r, e); }
   if (tM[i]) { e[0] += q; c.s += q; } else { e[1] += q; c.b += q; }
+}
+function vaXTrade(T, p, q, m) {               // other exchanges: volume only
+  if (!va.ready || T < va.until) return;
+  const k = vaKey(T); let c = va.c.get(k);
+  if (!c) { c = vaNew(k, p); va.c.set(k, c); va.keys = null; }
+  const r = Math.floor(p / va.step + 1e-7); let e = c.cells.get(r); if (!e) { e = [0, 0]; c.cells.set(r, e); }
+  if (m) { e[0] += q; c.s += q; } else { e[1] += q; c.b += q; }
 }
 // MT5 days (server time = New York close) and weeks
 const dayEnd = d => mt5Day(d + 30 * 3600000);
@@ -1711,7 +1923,10 @@ function drawVA() {
     const i = ks.indexOf(vaPick.a);
     if (i >= 0) { ctx.fillStyle = 'rgba(41,98,255,.15)'; ctx.fillRect(X(i), 0, cw, plotH); }
   }
+  drawGex(yOf, x1, plotH);
+  if (va.tf < 240) { const tfm = va.tf * 60000; drawNews(t => { const k = vaKey(t); return X(last) + ((k - ks[last]) / tfm) * cw + cw * ((t - k) / tfm); }, plotH, 0, x1); }
   lastLine(yOf, x1, plotH);
+  drawCtxLine(x1, plotH - 12);
   ctx.restore();
   priceAxis(x1, yOf, 0, plotH, ppd * va.step, va.step);
   for (const e of liveEv) if (e.state === 'live' && e.y > 8 && e.y < plotH - 8) {     // 'ABSORB' tag on the price scale while it happens
@@ -1797,10 +2012,12 @@ document.querySelectorAll('#tfVa button[data-vtf]').forEach(b => b.onclick = () 
 const LA = {ev: [], id: 0, pulse: false, lastAlert: {low: 0, high: 0}};
 const LA_Z = 0.4;
 function tradeIdxFrom(T) { let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (tT[m] < T) lo = m + 1; else hi = m; } return lo; }
+function xIdxFrom(T) { let lo = 0, hi = xn; while (lo < hi) { const m = (lo + hi) >> 1; if (xT[m] < T) lo = m + 1; else hi = m; } return lo; }
 function normPerMin(now) {                    // normal total volume per minute (last 30 min; Binance 1-min candles right after opening)
   if (n && tT[0] <= now - 10 * 60000) {
     const from = Math.max(tT[0], now - 30 * 60000); let s = 0;
     for (let i = tradeIdxFrom(from); i < n; i++) s += tQ[i];
+    if (xn && xT[0] <= from + 60000) for (let j = xIdxFrom(from); j < xn; j++) s += xQ[j];   // other exchanges (only once they cover the whole window)
     return s / Math.max(1, (now - from) / 60000);
   }
   const ks = klines.slice(-30); return ks.length ? ks.reduce((s, k) => s + k[5], 0) / ks.length : 0;
@@ -1828,6 +2045,10 @@ function liveAbsCheck() {
       const p = tP[i]; if (side === 'low' ? p > ext + LA_Z : p < ext - LA_Z) continue;
       if (!tFirst && Math.abs(p - ext) <= 0.05) tFirst = tT[i];
       if ((side === 'low') === (tM[i] === 1)) agg += tQ[i]; else opp += tQ[i];
+    }
+    if (xn && xT[0] <= now - 30 * 60000) for (let j = xIdxFrom(now - 60000); j < xn; j++) {    // other exchanges' volume at the same level
+      const p = xP[j]; if (side === 'low' ? p > ext + LA_Z : p < ext - LA_Z) continue;
+      if ((side === 'low') === (xM[j] === 1)) agg += xQ[j]; else opp += xQ[j];
     }
     if (agg < k * norm || agg < 1.8 * opp || !tFirst || now - tFirst < 8000) continue;
     if (side === 'low' ? px > ext + 2 * LA_Z : px < ext - 2 * LA_Z) continue;      // price already left: not 'right now' any more
@@ -2052,11 +2273,11 @@ function setTab(t) {
   if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
-const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert'};
+const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert', sVen: 'venues', sNews: 'news', sGex: 'gex'};
 $('#bSet').onclick = () => {
   for (const [id, k] of Object.entries(F)) $('#' + id).value = String(S[k]);
   colsSync();
-  $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus();
+  $('#sSnd').checked = !!S.sound; $('#sMt5').value = ''; $('#sOffStat').textContent = offStatus(); $('#sVenStat').textContent = xStatus();
   $('#sNow').textContent = lastPrice ? `(Binance now ${lastPrice.toFixed(2)})` : '';
   $('#sheet').classList.remove('hidden');
 };
@@ -2076,7 +2297,7 @@ $('#sCancel').onclick = () => $('#sheet').classList.add('hidden');
 $('#sheet').onclick = e => { if (e.target.id === 'sheet') $('#sheet').classList.add('hidden'); };
 $('#sOk').onclick = () => {
   const old = Object.assign({}, S);
-  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit' || k === 'theme' || k === 'fpCol') ? v : (parseFloat(v) || 0); }
+  for (const [id, k] of Object.entries(F)) { const v = $('#' + id).value; S[k] = (k === 'sym' || k === 'offMode' || k === 'unit' || k === 'theme' || k === 'fpCol' || k === 'venues') ? v : (parseFloat(v) || 0); }
   S.stepTf = S.stepTf || {}; S.stepTf[S.tf] = S.step;
   if (S.theme !== old.theme || S.fpCol !== old.fpCol) applyTheme();
   renderTools();
@@ -2085,7 +2306,7 @@ $('#sOk').onclick = () => {
   if (mt5 > 0 && lastPrice) { S.offset = Math.round((lastPrice - mt5) * 100) / 100; S.offMode = 'manual'; }
   if (S.sym !== old.sym) { S.autoOff = null; S.autoOffT = 0; }
   saveS(); $('#sheet').classList.add('hidden'); unlockAudio();
-  if (S.sym !== old.sym || S.backfill !== old.backfill) { start(); loadDayTrend(); return; }
+  if (S.sym !== old.sym || S.backfill !== old.backfill || S.venues !== old.venues) { start(); loadDayTrend(); return; }
   if (S.tf !== old.tf || S.step !== old.step) reloadFP();
   else if (S.imb !== old.imb || S.absK !== old.absK) rebuildAll();
   if (S.hstep !== old.hstep) { cols = []; histBusy = false; startGen++; loadBookHistory(HIST_MIN); }
@@ -2112,7 +2333,7 @@ document.addEventListener('visibilitychange', () => {
   const away = hiddenAt ? Date.now() - hiddenAt : 0;
   hiddenAt = 0;
   if (away > 10 * 60000 && !loading) { start(); return; }                 // long pause: reload everything
-  if (away > 15000) { syncing = false; histBusy = false; backoff = 1000; connect(); }   // sockets may be dead after a pause
+  if (away > 15000) { syncing = false; histBusy = false; backoff = 1000; connect(); xStart(); loadCtx('macro'); loadCtx('calendar'); loadCtx('gex'); }   // sockets may be dead after a pause
   if (wsDown()) { backoff = 1000; connect(); } else if (!filling && lastId) gapFill();
   const gapS = cols.length ? Date.now() / 1000 - cols[cols.length - 1].t : HIST_MIN * 60;
   if (gapS > 10) loadBookHistory(Math.min(HIST_MIN, Math.ceil(gapS / 60) + 2));
@@ -2127,6 +2348,7 @@ setInterval(() => {                      // watchdog: order book silent for 30 s
 setInterval(pruneSecs, 60000);
 setInterval(pollIndex, 10000);
 setTimeout(pollIndex, 1500);
+setInterval(pollBridge, 3000);
 setInterval(() => { if (S.tab === 'fp' || S.tab === 'hm' || S.tab === 'va') dirty = true; }, 1000);
 setInterval(() => { if (S.tab === 'srv' && document.visibilityState === 'visible') loadSrvStatus(); }, 15000);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -2136,7 +2358,7 @@ loadDayTrend();
 resize();
 requestAnimationFrame(frame);
 start();
-window.GOF = {LA, S, fpV, hmV, goldOpen, pollIndex, curOff, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals, srvHist: () => srvHist, srvStat: () => srvStat, walls: () => walls, loadBookHistory};
+window.GOF = {LA, S, fpV, hmV, goldOpen, pollIndex, curOff, CTX, xs, xStatus, onXTrades, xn: () => xn, mt5B: () => mt5B, pollBridge, candles: () => candles, book, cols: () => cols, n: () => n, prof: () => prof, signals: () => signals, srvHist: () => srvHist, srvStat: () => srvStat, walls: () => walls, loadBookHistory};
 })();
 </script>
 </body>
