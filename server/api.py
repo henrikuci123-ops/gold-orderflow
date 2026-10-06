@@ -487,6 +487,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(400, '{"error":"bad quote"}')
             rec = {"recv": int(time.time() * 1000), "sym": str(d.get("sym", ""))[:20], "bid": bid, "ask": ask,
                    "srv": str(d.get("srv", ""))[:30], "acct": str(d.get("acct", ""))[-4:], "x": {}}
+            try:
+                rec["age"] = int(d.get("age", 0))      # seconds since MT5's last price change (market closed = large)
+            except (TypeError, ValueError):
+                rec["age"] = 0
             for k, v in (d.get("x") or {}).items():
                 try:
                     rec["x"][str(k)[:20]] = float(v)
