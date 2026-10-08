@@ -1,0 +1,285 @@
+// Gold Daily Volume Profiles - for Henri, Oct 8 2026 (free: one indicator draws a separate profile for each day)
+// Pick how many past days to show (1-20). Each day gets its own volume profile that starts and ends with that day,
+// with its POC (fair price) and value area (VAH / VAL, 70% of the volume). Today's profile builds live.
+// Old levels can be extended to the right until price touches them ("untested" levels act as magnets / walls).
+// Days follow the broker's session (FX gold: about 00:00-23:00 Tirana), same as the Gold Flow app.
+// Volume is spread over the 1-minute candles inside each chart candle (precise even on 45m / 1h charts).
+// XAUUSD from FX brokers only has tick volume (same as MT5). For real exchange volume use COMEX:GC1!.
+// Install: TradingView > Pine Editor > paste all > Save > Add to chart. Settings: gear icon next to its name.
+// TradingView limits drawings to 500 boxes, so with many days the rows per day are reduced automatically.
+//@version=5
+indicator("Gold Daily Volume Profiles", shorttitle = "Gold Daily VP", overlay = true, max_boxes_count = 500, max_lines_count = 500, max_labels_count = 500, max_bars_back = 5000)
+
+// ---------- inputs
+grpD      = "Days"
+nDays     = input.int(5, "Past days to show", minval = 1, maxval = 20, group = grpD)
+showToday = input.bool(true, "Also today's profile (builds live)", group = grpD)
+
+grpP      = "Profile"
+rowsIn    = input.int(40, "Rows per day", minval = 10, maxval = 100, group = grpP)
+vaPct     = input.float(70.0, "Value area %", minval = 10.0, maxval = 100.0, group = grpP)
+volType   = input.string("Up/Down", "Volume", options = ["Up/Down", "Total"], group = grpP, tooltip = "Up/Down = buying (candle closed up) and selling (closed down) side by side. Total uses half the drawings, so more rows fit.")
+useLtf    = input.bool(true, "Precise: use the 1-minute candles inside each chart candle", group = grpP)
+
+grpV      = "Display"
+widthPct  = input.int(40, "Width (% of the day)", minval = 5, maxval = 100, group = grpV)
+extMode   = input.string("Until price touches it", "Extend old POC / VAH / VAL", options = ["Only inside the day", "Until price touches it", "All the way to the right"], group = grpV)
+showVA    = input.bool(true, "Show VAH / VAL lines", group = grpV)
+showLbl   = input.bool(true, "Price labels", group = grpV)
+showBox   = input.bool(false, "Shade each day", group = grpV)
+upCol     = input.color(color.teal, "Buying volume", group = grpV)
+dnCol     = input.color(color.orange, "Selling volume", group = grpV)
+totCol    = input.color(color.gray, "Total volume", group = grpV)
+pocCol    = input.color(color.yellow, "POC (fair price)", group = grpV)
+vaCol     = input.color(color.blue, "Value area lines", group = grpV)
+
+// rows per day that fit in TradingView's 500 drawings
+int perRow = volType == "Up/Down" ? 2 : 1
+int nProf  = nDays + (showToday ? 1 : 0)
+int nR     = math.max(8, math.min(rowsIn, math.floor(460 / (nProf * perRow))))
+
+// ---------- 1-minute candles inside each chart candle
+int    tfSec = timeframe.in_seconds()
+string ltf   = tfSec <= 60 ? timeframe.period : tfSec <= 900 ? "1" : tfSec <= 14400 ? "5" : "60"
+[lh, ll, lo1, lc1, lv] = request.security_lower_tf(syminfo.tickerid, ltf, [high, low, open, close, volume])
+
+// spread one candle's volume evenly over the rows between its low and high
+addVol(array<float> up, array<float> dn, float lo0, float rowH, int rows, float h, float l, float v, int d) =>
+    if not na(h) and not na(l) and not na(v) and v > 0
+        int a = math.max(0, math.min(rows - 1, math.floor((l - lo0) / rowH)))
+        int b = math.max(a, math.min(rows - 1, math.floor((h - lo0) / rowH)))
+        float each = v / (b - a + 1)
+        for r = a to b
+            if d > 0
+                array.set(up, r, array.get(up, r) + each)
+            else if d < 0
+                array.set(dn, r, array.get(dn, r) + each)
+            else
+                array.set(up, r, array.get(up, r) + each / 2)
+                array.set(dn, r, array.get(dn, r) + each / 2)
+    true
+
+// profile of a set of candles -> [low, row height, up rows, down rows, POC, VAH, VAL, total]
+build(array<float> H, array<float> L, array<float> V, array<int> D, int rows) =>
+    float hi   = array.max(H)
+    float lo0  = array.min(L)
+    float rowH = math.max((hi - lo0) / rows, syminfo.mintick)
+    array<float> up = array.new<float>(rows, 0.0)
+    array<float> dn = array.new<float>(rows, 0.0)
+    for i = 0 to array.size(H) - 1
+        addVol(up, dn, lo0, rowH, rows, array.get(H, i), array.get(L, i), array.get(V, i), array.get(D, i))
+    float total = 0.0
+    float maxT  = 0.0
+    int   pocI  = 0
+    for r = 0 to rows - 1
+        float t = array.get(up, r) + array.get(dn, r)
+        total += t
+        if t > maxT
+            maxT := t
+            pocI := r
+    int   vaLo = pocI
+    int   vaHi = pocI
+    float acc  = maxT
+    while total > 0 and acc < total * vaPct / 100 and (vaLo > 0 or vaHi < rows - 1)
+        float upV = vaHi < rows - 1 ? array.get(up, vaHi + 1) + array.get(dn, vaHi + 1) : -1.0
+        float dnV = vaLo > 0 ? array.get(up, vaLo - 1) + array.get(dn, vaLo - 1) : -1.0
+        if upV >= dnV
+            vaHi += 1
+            acc  += upV
+        else
+            vaLo -= 1
+            acc  += dnV
+    [lo0, rowH, up, dn, lo0 + (pocI + 0.5) * rowH, lo0 + (vaHi + 1) * rowH, lo0 + vaLo * rowH, total]
+
+// ---------- collect the current day's candles; at each new day store the finished day's profile
+var array<float> rH = array.new<float>()
+var array<float> rL = array.new<float>()
+var array<float> rV = array.new<float>()
+var array<int>   rD = array.new<int>()
+var int dayStart = na
+var int dayStartT = na
+
+var array<float> fLo   = array.new<float>()
+var array<float> fRowH = array.new<float>()
+var array<int>   fS    = array.new<int>()
+var array<int>   fE    = array.new<int>()
+var array<int>   fT    = array.new<int>()
+var array<float> fPoc  = array.new<float>()
+var array<float> fVah  = array.new<float>()
+var array<float> fVal  = array.new<float>()
+var array<float> fMax  = array.new<float>()
+var array<float> fUp   = array.new<float>()       // nR values per stored day, oldest first
+var array<float> fDn   = array.new<float>()
+
+if timeframe.change("D")
+    if array.size(rH) > 0 and not na(dayStart)
+        [lo0, rowH, up, dn, pocP, vahP, valP, total] = build(rH, rL, rV, rD, nR)
+        float mx = 0.0
+        for r = 0 to nR - 1
+            mx := math.max(mx, array.get(up, r) + array.get(dn, r))
+        array.push(fLo, lo0)
+        array.push(fRowH, rowH)
+        array.push(fS, dayStart)
+        array.push(fE, bar_index - 1)
+        array.push(fT, dayStartT)
+        array.push(fPoc, pocP)
+        array.push(fVah, vahP)
+        array.push(fVal, valP)
+        array.push(fMax, mx)
+        for r = 0 to nR - 1
+            array.push(fUp, array.get(up, r))
+            array.push(fDn, array.get(dn, r))
+        while array.size(fLo) > nDays
+            array.shift(fLo)
+            array.shift(fRowH)
+            array.shift(fS)
+            array.shift(fE)
+            array.shift(fT)
+            array.shift(fPoc)
+            array.shift(fVah)
+            array.shift(fVal)
+            array.shift(fMax)
+            for r = 0 to nR - 1
+                array.shift(fUp)
+                array.shift(fDn)
+    array.clear(rH)
+    array.clear(rL)
+    array.clear(rV)
+    array.clear(rD)
+    dayStart := bar_index
+    dayStartT := time
+
+addBar(array<float> H, array<float> L, array<float> V, array<int> D) =>
+    if useLtf and array.size(lv) > 0
+        for i = 0 to array.size(lv) - 1
+            array.push(H, array.get(lh, i))
+            array.push(L, array.get(ll, i))
+            array.push(V, nz(array.get(lv, i)))
+            float o1 = array.get(lo1, i)
+            float c1 = array.get(lc1, i)
+            array.push(D, c1 > o1 ? 1 : c1 < o1 ? -1 : 0)
+    else
+        array.push(H, high)
+        array.push(L, low)
+        array.push(V, nz(volume))
+        array.push(D, close > open ? 1 : close < open ? -1 : 0)
+    true
+
+if barstate.isconfirmed and not na(dayStart)
+    addBar(rH, rL, rV, rD)
+
+// ---------- drawing
+seg(int xa, int xb, float top, float bot, color c) =>
+    box.new(math.min(xa, xb), top, math.max(xa, xb), bot, border_color = na, bgcolor = c)
+
+drawProfile(array<box> bx, float lo0, float rowH, array<float> up, array<float> dn, int off, float mx, int xL, int wBars, int pocI0, float vahP, float valP) =>
+    for r = 0 to nR - 1
+        float u   = array.get(up, off + r)
+        float d   = array.get(dn, off + r)
+        float top = lo0 + (r + 1) * rowH
+        float bot = lo0 + r * rowH
+        bool  inVA = bot >= valP - rowH / 2 and top <= vahP + rowH / 2
+        int   tr  = inVA ? 25 : 70
+        if mx > 0
+            if volType == "Up/Down"
+                int lu = math.round(wBars * u / mx)
+                int ld = math.round(wBars * (u + d) / mx) - lu
+                if lu > 0
+                    array.push(bx, seg(xL, xL + lu, top, bot, color.new(upCol, tr)))
+                if ld > 0
+                    array.push(bx, seg(xL + lu, xL + lu + ld, top, bot, color.new(dnCol, tr)))
+            else
+                int lt = math.round(wBars * (u + d) / mx)
+                if lt > 0
+                    array.push(bx, seg(xL, xL + lt, top, bot, color.new(r == pocI0 ? pocCol : totCol, tr)))
+    true
+
+// first bar after 'from' where price traded through 'p' (na = never)
+touched(float p, int from) =>
+    int hit = na
+    if from < bar_index
+        for x = math.max(from + 1, bar_index - 4990) to bar_index
+            int back = bar_index - x
+            if low[back] <= p and high[back] >= p
+                hit := x
+                break
+    hit
+
+levelLine(array<line> ln, array<label> lb, float p, int xs, int xe, color c, int w, string st, string txt, bool isToday) =>
+    int   xEnd = xe
+    string ex  = extend.none
+    if isToday
+        ex := extend.right
+    else if extMode == "All the way to the right"
+        ex := extend.right
+    else if extMode == "Until price touches it"
+        int t = touched(p, xe)
+        if na(t)
+            ex := extend.right
+        else
+            xEnd := t
+    array.push(ln, line.new(xs, p, math.max(xEnd, xs + 1), p, extend = ex, color = c, width = w, style = st))
+    if showLbl
+        bool open_ = ex == extend.right
+        int  lx    = open_ ? bar_index + 2 : xEnd
+        array.push(lb, label.new(lx, p, txt + " " + str.tostring(p, format.mintick), style = label.style_label_left, color = color.new(c, open_ ? 25 : 60), textcolor = c == pocCol ? color.black : color.white, size = size.tiny))
+    true
+
+var array<box>   boxes  = array.new<box>()
+var array<line>  lines  = array.new<line>()
+var array<label> labels = array.new<label>()
+
+if barstate.islast
+    for b in boxes
+        box.delete(b)
+    array.clear(boxes)
+    for l in lines
+        line.delete(l)
+    array.clear(lines)
+    for l in labels
+        label.delete(l)
+    array.clear(labels)
+
+    int nStored = array.size(fLo)
+    if nStored > 0
+        for k = 0 to nStored - 1
+            int   xs   = array.get(fS, k)
+            int   xe   = array.get(fE, k)
+            float lo0  = array.get(fLo, k)
+            float rowH = array.get(fRowH, k)
+            float pocP = array.get(fPoc, k)
+            float vahP = array.get(fVah, k)
+            float valP = array.get(fVal, k)
+            int   w    = math.max(3, math.round((xe - xs + 1) * widthPct / 100.0))
+            int   pocI = math.floor((pocP - lo0) / rowH)
+            if showBox
+                array.push(boxes, box.new(xs, lo0 + nR * rowH, xe, lo0, border_color = color.new(color.gray, 75), bgcolor = color.new(color.gray, 95)))
+            drawProfile(boxes, lo0, rowH, fUp, fDn, k * nR, array.get(fMax, k), xs, w, pocI, vahP, valP)
+            string d = str.format("{0,date,MMM d}", array.get(fT, k))
+            levelLine(lines, labels, pocP, xs, xe, pocCol, 2, line.style_solid, d + " POC", false)
+            if showVA
+                levelLine(lines, labels, vahP, xs, xe, vaCol, 1, line.style_dashed, d + " VAH", false)
+                levelLine(lines, labels, valP, xs, xe, vaCol, 1, line.style_dashed, d + " VAL", false)
+
+    if showToday and not na(dayStart)
+        array<float> tH = array.copy(rH)
+        array<float> tL = array.copy(rL)
+        array<float> tV = array.copy(rV)
+        array<int>   tD = array.copy(rD)
+        if not barstate.isconfirmed
+            addBar(tH, tL, tV, tD)
+        if array.size(tH) > 0
+            [lo0, rowH, up, dn, pocP, vahP, valP, total] = build(tH, tL, tV, tD, nR)
+            if total <= 0
+                array.push(labels, label.new(bar_index, high, "Gold Daily VP: no volume data on this symbol - try OANDA:XAUUSD or COMEX:GC1!", style = label.style_label_down, color = color.red, textcolor = color.white))
+            else
+                float mx = 0.0
+                for r = 0 to nR - 1
+                    mx := math.max(mx, array.get(up, r) + array.get(dn, r))
+                int w    = math.max(3, math.round((bar_index - dayStart + 1) * widthPct / 100.0))
+                int pocI = math.floor((pocP - lo0) / rowH)
+                drawProfile(boxes, lo0, rowH, up, dn, 0, mx, dayStart, w, pocI, vahP, valP)
+                levelLine(lines, labels, pocP, dayStart, bar_index, pocCol, 2, line.style_solid, "Today POC", true)
+                if showVA
+                    levelLine(lines, labels, vahP, dayStart, bar_index, vaCol, 1, line.style_dashed, "Today VAH", true)
+                    levelLine(lines, labels, valP, dayStart, bar_index, vaCol, 1, line.style_dashed, "Today VAL", true)
