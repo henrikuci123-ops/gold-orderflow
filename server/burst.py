@@ -12,8 +12,16 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
   P&L: Binance prices, minus $0.60/oz per bet (spread + slippage + ~$5 broker fee at 0.2 lot), $0.10 extra on stops.
   The MT5 quote (GoldPriceBridge) at entry and exit is stored too, to compare with the broker's price.
 
-Writes  <status>/burst/YYYY-MM-DD.jsonl   one line per finished trade or skipped burst (Tirana day of the burst)
-        <status>/burst/state.json         what it is doing now, the open trade, today's trades, every day's totals
+Version B (Oct 18 2026) runs side by side on the same trades: identical, except that when the volume has calmed it
+only fades if the burst looks exhausted -
+  * the order book leans against the burst: resting orders within $1.5 on the far side (asks for an up-burst)
+    >= the near side (bids), from the recorder's 2-second book snapshot (<status>/book_now.json), and
+  * price has already pulled back >= $0.50 from the burst's extreme.
+  Otherwise B skips that burst. Version A records the same two numbers on its trades, for later analysis.
+
+Writes  <status>/burst/YYYY-MM-DD.jsonl   version A: one line per finished trade or skipped burst (Tirana day)
+        <status>/burst/B/YYYY-MM-DD.jsonl version B
+        <status>/burst/state.json         what each version is doing now, today's trades, every day's totals
 On start it replays the last ~80 minutes from the recorder's files (warms up the 'normal volume' and picks up a
 trade that was open), without writing anything twice.
 """
@@ -28,6 +36,7 @@ WS = "wss://fstream.binance.com/market/stream?streams={s}@aggTrade"
 WWW = os.environ.get("GOF_STATUS") or F.BASE
 OUT = os.path.join(WWW, "burst")
 MT5 = os.path.join(WWW, "context", "mt5.json")
+BOOK_NOW = os.path.join(WWW, "book_now.json")
 TZ = ZoneInfo("Europe/Tirane")
 
 # ---- rules (dollars / seconds) ----
@@ -38,6 +47,13 @@ MAX_HOLD = 1800
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
+B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
+
+
+def book_sides(rec):
+    """resting size within $1.5 of the best bid / ask (recorder rows are $0.25 buckets)"""
+    bb, ba = rec["bb"], rec["ba"]
+    return (sum(q for p, q in rec["b"] if p >= bb - BOOK_NEAR), sum(q for p, q in rec["a"] if p <= ba + BOOK_NEAR))
 
 
 def log(*a):
@@ -69,9 +85,11 @@ def mt5_quote():
 class Engine:
     """Per-second state machine. Feed trades with add(); call tick() every second (also when there are no trades)."""
 
-    def __init__(self, emit):
+    def __init__(self, emit, variant="A", book_at=None):
         self.emit = emit                  # emit(rec) for finished trades / skipped bursts
-        self.buf = deque()                # closed seconds: (sec, cumulative buy, cumulative sell, price)
+        self.variant, self.book_at = variant, book_at
+        self.buf = deque()                # closed seconds: (sec, cumulative buy, cumulative sell, price, high, low)
+        self.hi_cur = self.lo_cur = None
         self.cb = self.cs = 0.0
         self.cur = None                   # open second
         self.cb_cur = self.cs_cur = 0.0
@@ -93,6 +111,10 @@ class Engine:
         else:
             self.cb_cur += q
         self.px = px
+        if self.hi_cur is None or px > self.hi_cur:
+            self.hi_cur = px
+        if self.lo_cur is None or px < self.lo_cur:
+            self.lo_cur = px
         self.n_trades += 1
 
     def tick(self, now_ms):
@@ -107,8 +129,9 @@ class Engine:
         while self.cur < upto:
             self.cb += self.cb_cur
             self.cs += self.cs_cur
-            self.buf.append((self.cur, self.cb, self.cs, self.px))
+            self.buf.append((self.cur, self.cb, self.cs, self.px, self.hi_cur or self.px, self.lo_cur or self.px))
             self.cb_cur = self.cs_cur = 0.0
+            self.hi_cur = self.lo_cur = None
             while len(self.buf) > KEEP:
                 self.buf.popleft()
             if self.px > 0:
@@ -137,6 +160,11 @@ class Engine:
             v = sum(self.vol(k - CALM_W, k))
             if v / CALM_W <= CALM_F * b["pace"]:
                 b["calm"] = k
+                self.exhaustion(b, k)
+                if self.variant == "B" and not b["ok_b"]:
+                    self.finish_skip(b, b["why_b"])
+                    self.mode, self.burst, self.cool = "idle", None, k + 1
+                    return
                 self.mode = "enter"
                 return
             if k < b["k"] + CALM_MAX:
@@ -161,6 +189,30 @@ class Engine:
         self.burst = {"k": k, "move": round(p1 - p0, 2), "dir": d, "pace": tot / W, "volx": round(tot / avg, 1) if avg > 0 else None,
                       "share": round(share, 2), "from": p0, "to": p1}
         self.mode = "wait"
+
+    def exhaustion(self, b, k):
+        """version B's check at the moment the volume has calmed (second k)"""
+        u = b["dir"]
+        ext = None
+        for i in range(b["k"] - W, k + 1):
+            x = self.at(i)
+            if x is None:
+                continue
+            v = x[4] if u > 0 else x[5]
+            if ext is None or (v > ext if u > 0 else v < ext):
+                ext = v
+        b["ext"] = ext
+        b["pull"] = round(u * (ext - self.at(k)[3]), 2)
+        sides = self.book_at(k) if self.book_at else None
+        b["book"] = None if sides is None or min(sides) <= 0 else round((sides[1] / sides[0]) if u > 0 else (sides[0] / sides[1]), 2)
+        why = []
+        if b["book"] is None:
+            why.append("no order book")
+        elif b["book"] < B_BOOK:
+            why.append(f"book still with the burst ({b['book']:.2f})")
+        if b["pull"] < B_PULL:
+            why.append(f"no pullback yet (${b['pull']:.2f})")
+        b["ok_b"], b["why_b"] = not why, "B: " + ", ".join(why)
 
     def enter(self, k):
         b = self.burst
@@ -221,14 +273,15 @@ class Engine:
                "bet2": T["nb"] == 2, "bet2_t": tir(T["t2"]).strftime("%H:%M:%S") if T["t2"] else None,
                "out_t": tir(j).strftime("%H:%M:%S"), "exit": round(xp, 2), "why": why, "usd": round(usd, 2),
                "hold_min": round((j - T["k"]) / 60, 1), "mfe": round(T["mfe"], 2), "mae": round(T["mae"], 2),
-               "mt5_in": T["mt5_in"], "mt5_out": mt5_quote() if self.live else None, "t": T["k"] * 1000}
+               "mt5_in": T["mt5_in"], "mt5_out": mt5_quote() if self.live else None, "t": T["k"] * 1000,
+               "v": self.variant, "book": b.get("book"), "pull": b.get("pull")}
         self.mode, self.trade, self.burst, self.cool = "idle", None, None, j + 1
         self.emit(rec)
 
-    def finish_skip(self, b):
+    def finish_skip(self, b, why="volume did not calm within 2 min"):
         self.emit({"kind": "skip", "id": f"s{b['k']}", "day": tir(b["k"]).strftime("%Y-%m-%d"),
                    "burst_t": tir(b["k"]).strftime("%H:%M:%S"), "burst": b["move"], "volx": b["volx"], "share": b["share"],
-                   "why": "volume did not calm within 2 min", "t": b["k"] * 1000})
+                   "why": why, "t": b["k"] * 1000, "v": self.variant, "book": b.get("book"), "pull": b.get("pull")})
 
     # ---------------------------------------------------------------- for the app
     def now_state(self):
@@ -247,18 +300,75 @@ class Engine:
         return {"mode": "idle", "hours": t.weekday() < 5 and H0 <= t.hour < H1}
 
 
+class Book:
+    """the recorder's 2-second order-book snapshots, reduced to (second, near bids, near asks)"""
+
+    def __init__(self):
+        self.snaps = deque(maxlen=6000)
+        self.last_t = 0
+
+    def add(self, rec):
+        if rec.get("t", 0) <= self.last_t or not rec.get("b") or not rec.get("a"):
+            return
+        self.last_t = rec["t"]
+        self.snaps.append((rec["t"] // 1000, *book_sides(rec)))
+
+    def at(self, sec):
+        for s_, b, a in reversed(self.snaps):
+            if s_ <= sec:
+                return (b, a) if sec - s_ <= BOOK_AGE else None
+        return None
+
+    def load_recorded(self, since_ms):
+        import gzip
+        now = int(time.time() * 1000)
+        recs = []
+        for h in range(3, -1, -1):
+            day, hh = F.day_hour(now - h * 3600000)
+            for fn in (f"book_{hh}.jsonl.gz", f"book_{hh}.jsonl"):
+                path = os.path.join(F.rec_dir(day), fn)
+                if not os.path.exists(path):
+                    continue
+                try:
+                    with (gzip.open if fn.endswith(".gz") else open)(path, "rt") as f:
+                        for line in f:
+                            try:
+                                r = json.loads(line)
+                            except ValueError:
+                                continue
+                            if r.get("t", 0) >= since_ms:
+                                recs.append(r)
+                except (OSError, EOFError):
+                    pass
+        for r in sorted(recs, key=lambda r: r["t"]):
+            self.add(r)
+        return len(recs)
+
+    def poll(self):
+        try:
+            with open(BOOK_NOW) as f:
+                self.add(json.load(f))
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+
+
 class Runner:
     def __init__(self):
-        os.makedirs(OUT, exist_ok=True)
-        self.engine = Engine(self.on_rec)
+        self.book = Book()
+        self.out = {"A": OUT, "B": os.path.join(OUT, "B")}
+        self.engines, self.seen, self.days = {}, {}, {}
+        for v, d in self.out.items():
+            os.makedirs(d, exist_ok=True)
+            self.engines[v] = Engine(lambda rec, v=v: self.on_rec(v, rec), v, self.book.at)
+            self.seen[v] = set()
+            for p in sorted(glob.glob(os.path.join(d, "*.jsonl")))[-3:]:
+                for r in self.read(p):
+                    self.seen[v].add(r.get("id"))
+            self.days[v] = {}
+            self.rebuild_days(v)
+        self.engine = self.engines["A"]
         self.last_id = 0
         self.connected = False
-        self.seen = set()
-        for p in sorted(glob.glob(os.path.join(OUT, "*.jsonl")))[-3:]:
-            for r in self.read(p):
-                self.seen.add(r.get("id"))
-        self.days = {}
-        self.rebuild_days()
 
     @staticmethod
     def read(path):
@@ -274,17 +384,17 @@ class Runner:
             pass
         return out
 
-    def on_rec(self, rec):
-        if rec["id"] in self.seen:
+    def on_rec(self, v, rec):
+        if rec["id"] in self.seen[v]:
             return
-        self.seen.add(rec["id"])
-        with open(os.path.join(OUT, rec["day"] + ".jsonl"), "a") as f:
+        self.seen[v].add(rec["id"])
+        with open(os.path.join(self.out[v], rec["day"] + ".jsonl"), "a") as f:
             f.write(json.dumps(rec, separators=(",", ":")) + "\n")
         if rec["kind"] == "trade":
-            log(f"trade {rec['day']} {rec['in_t']} {rec['side']} {rec['entry']} -> {rec['exit']} ({rec['why']}) {rec['usd']:+.2f}")
+            log(f"{v} trade {rec['day']} {rec['in_t']} {rec['side']} {rec['entry']} -> {rec['exit']} ({rec['why']}) {rec['usd']:+.2f}")
         else:
-            log(f"skipped burst {rec['day']} {rec['burst_t']} {rec['burst']:+.2f}")
-        self.rebuild_days(rec["day"])
+            log(f"{v} skipped burst {rec['day']} {rec['burst_t']} {rec['burst']:+.2f}: {rec['why']}")
+        self.rebuild_days(v, rec["day"])
 
     @staticmethod
     def summary(recs):
@@ -295,51 +405,64 @@ class Runner:
                 "skips": sum(1 for r in recs if r["kind"] == "skip"),
                 "best": max((r["usd"] for r in tr), default=None), "worst": min((r["usd"] for r in tr), default=None)}
 
-    def rebuild_days(self, only=None):
-        files = sorted(glob.glob(os.path.join(OUT, "*.jsonl")))
-        for p in files:
+    def rebuild_days(self, v, only=None):
+        for p in sorted(glob.glob(os.path.join(self.out[v], "*.jsonl"))):
             day = os.path.basename(p)[:10]
             if only is None or day == only:
-                self.days[day] = self.summary(self.read(p))
+                self.days[v][day] = self.summary(self.read(p))
 
-    def write_state(self):
-        today = tir(time.time()).strftime("%Y-%m-%d")
-        recs = self.read(os.path.join(OUT, today + ".jsonl"))
-        days = [dict(day=k, **v) for k, v in sorted(self.days.items(), reverse=True)][:60]
+    def block(self, v, today):
+        recs = self.read(os.path.join(self.out[v], today + ".jsonl"))
+        days = [dict(day=k, **x) for k, x in sorted(self.days[v].items(), reverse=True)][:60]
         tr_days = [x for x in days if x["n"] > 0]
         allsum = {"days": len(tr_days), "n": sum(x["n"] for x in tr_days), "wins": sum(x["wins"] for x in tr_days),
                   "usd": round(sum(x["usd"] for x in tr_days), 2), "green_days": sum(1 for x in tr_days if x["usd"] > 0),
-                  "full_stops": sum(x["full_stops"] for x in tr_days)}
-        write_json(os.path.join(OUT, "state.json"), {
-            "updated": int(time.time() * 1000), "connected": self.connected, "trades_seen": self.engine.n_trades,
-            "now": self.engine.now_state(), "today": {"day": today, **self.summary(recs), "list": recs[::-1]},
-            "days": days, "all": allsum,
-            "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
-                     "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
-                     "it, trail $2 from break even; 1st bet trails $2 from +$5; max 30 min. Paper trades on Binance prices, "
-                     "after ~$0.60/oz per bet (spread + ~$5 fee)."})
+                  "full_stops": sum(x["full_stops"] for x in tr_days), "bet2": sum(x["bet2"] for x in tr_days)}
+        return {"now": self.engines[v].now_state(), "today": {"day": today, **self.summary(recs), "list": recs[::-1]},
+                "days": days, "all": allsum}
+
+    def write_state(self):
+        today = tir(time.time()).strftime("%Y-%m-%d")
+        st = {"updated": int(time.time() * 1000), "connected": self.connected, "trades_seen": self.engine.n_trades,
+              "book_age": round(time.time() - self.book.last_t / 1000, 1) if self.book.last_t else None,
+              **self.block("A", today),
+              "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
+                       "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
+                       "it, trail $2 from break even; 1st bet trails $2 from +$5; max 30 min. Paper trades on Binance prices, "
+                       "after ~$0.60/oz per bet (spread + ~$5 fee).",
+              "B": {**self.block("B", today),
+                    "rules": "Version B: same, but when the volume has calmed it only fades if the order book leans against "
+                             "the burst (resting size within $1.5 on the far side >= the near side) and price has already "
+                             "pulled back $0.50+ from the burst's extreme. Otherwise it skips the burst."}}
+        write_json(os.path.join(OUT, "state.json"), st)
 
     def replay(self):
         now = int(time.time() * 1000)
+        nb = self.book.load_recorded(now - 85 * 60000)
         trades = []
         for h in range(3, -1, -1):
             day, hh = F.day_hour(now - h * 3600000)
             trades += F.recorded_trades(day, hh)
         trades = sorted({t[0]: t for t in trades if t[1] >= now - 80 * 60000}.values(), key=lambda t: (t[1], t[0]))
-        self.engine.live = False
+        for e in self.engines.values():
+            e.live = False
         for a, t, pc, q, sell in trades:
-            self.engine.add(t, pc / 100, q, sell)
+            for e in self.engines.values():
+                e.add(t, pc / 100, q, sell)
             self.last_id = a
-        self.engine.tick(int(time.time() * 1000))
-        self.engine.live = True
-        log(f"replay: {len(trades)} recorded trades from the last 80 min; now {self.engine.mode}")
+        for e in self.engines.values():
+            e.tick(int(time.time() * 1000))
+            e.live = True
+        log(f"replay: {len(trades)} recorded trades, {nb} book snapshots from the last 80 min; "
+            f"now A {self.engines['A'].mode}, B {self.engines['B'].mode}")
 
     def on_trade(self, d):
         a = d["a"]
         if a <= self.last_id:
             return
         self.last_id = a
-        self.engine.add(int(d["T"]), float(d["p"]), float(d["q"]), bool(d["m"]))
+        for e in self.engines.values():
+            e.add(int(d["T"]), float(d["p"]), float(d["q"]), bool(d["m"]))
 
     async def stream(self):
         import websockets
@@ -367,7 +490,9 @@ class Runner:
         n = 0
         while True:
             await asyncio.sleep(1)
-            self.engine.tick(int(time.time() * 1000))
+            self.book.poll()
+            for e in self.engines.values():
+                e.tick(int(time.time() * 1000))
             n += 1
             if n % 2 == 0:
                 try:

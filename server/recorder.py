@@ -306,7 +306,15 @@ class Recorder:
         rec = {"t": t, "bb": bb, "ba": ba,
                "b": [[p, round(q, 3)] for p, q in sorted(rows_b.items(), reverse=True)],
                "a": [[p, round(q, 3)] for p, q in sorted(rows_a.items())]}
-        self.books.write(t, json.dumps(rec, separators=(",", ":")) + "\n")
+        line = json.dumps(rec, separators=(",", ":"))
+        self.books.write(t, line + "\n")
+        try:                                   # latest snapshot for live readers (burst.py version B)
+            tmp = os.path.join(STATUS_DIR, "book_now.json.tmp")
+            with open(tmp, "w") as f:
+                f.write(line)
+            os.replace(tmp, os.path.join(STATUS_DIR, "book_now.json"))
+        except OSError:
+            pass
 
     # ---------------- status page (status.json)
     def write_status(self):
