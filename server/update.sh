@@ -38,6 +38,10 @@ main() {
     systemctl restart gof-context.service
     echo "$(date -u '+%F %T') context restarted" >> "$LOG"
   fi
+  if echo "$changed" | grep -Eq '^server/(burst|fpcore).py$'; then
+    systemctl restart gof-burst.service
+    echo "$(date -u '+%F %T') burst restarted" >> "$LOG"
+  fi
   if echo "$changed" | grep -Eq '^server/(backtest|absorb).py$'; then
     systemctl start --no-block gof-backtest.service
     echo "$(date -u '+%F %T') backtest started" >> "$LOG"

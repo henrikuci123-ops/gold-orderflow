@@ -121,6 +121,24 @@ Nice=5
 WantedBy=multi-user.target
 EOF
 
+  write_if_changed /etc/systemd/system/gof-burst.service <<EOF
+[Unit]
+Description=Gold order-flow: burst strat paper trader (fades heavy-volume bursts after the volume calms, logs every trade)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=gof
+Environment=GOF_DATA=$DATA GOF_STATUS=$WWW
+ExecStart=/usr/bin/python3 -u $REPO/server/burst.py
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
   write_if_changed /etc/systemd/system/gof-context.service <<EOF
 [Unit]
 Description=Gold order-flow market context: US 10y yield + dollar index, economic calendar, gold options walls
@@ -202,7 +220,7 @@ EOF
   fi
 
   systemctl daemon-reload
-  systemctl enable --now gof-recorder.service gof-api.service gof-history.service gof-signals.service gof-multi.service gof-context.service gof-update.timer caddy >/dev/null 2>&1
+  systemctl enable --now gof-recorder.service gof-api.service gof-history.service gof-signals.service gof-multi.service gof-context.service gof-burst.service gof-update.timer caddy >/dev/null 2>&1
   if [ "${CHANGED_CADDY:-0}" = 1 ]; then systemctl reload caddy || systemctl restart caddy; fi
   if [ "${CHANGED_SERVICE:-0}" = 1 ]; then systemctl restart gof-recorder.service; fi
   if [ "${CHANGED_API:-0}" = 1 ]; then systemctl restart gof-api.service; fi
@@ -210,6 +228,7 @@ EOF
   if [ "${CHANGED_SIG:-0}" = 1 ]; then systemctl restart gof-signals.service; fi
   if [ "${CHANGED_MULTI:-0}" = 1 ]; then systemctl restart gof-multi.service; fi
   if [ "${CHANGED_CTX:-0}" = 1 ]; then systemctl restart gof-context.service; fi
+  if [ "${CHANGED_BURST:-0}" = 1 ]; then systemctl restart gof-burst.service; fi
   # absorption backtest: run once if there is no result yet (later runs: update.sh, when backtest.py / absorb.py change)
   if [ ! -f "$WWW/backtest/absorption.json" ]; then systemctl start --no-block gof-backtest.service; fi
   echo "setup done $(date -u '+%F %T') version $(cat /opt/gof/version.txt 2>/dev/null) address https://$host/"
@@ -231,6 +250,7 @@ write_if_changed() {
       */gof-signals.service) CHANGED_SIG=1 ;;
       */gof-multi.service) CHANGED_MULTI=1 ;;
       */gof-context.service) CHANGED_CTX=1 ;;
+      */gof-burst.service) CHANGED_BURST=1 ;;
     esac
   fi
   rm -f "$tmp"
