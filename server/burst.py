@@ -2,7 +2,7 @@
 
 Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checked once per second:
   1. Burst: price moved >= $3 in the last 30 s, that 30 s traded >= 2x a normal 30 s (average of the 30 min before)
-     and >= 60% of it was aggressors on the move's side. Only when the burst happens 09:00-22:00 Tirana.
+     and >= 60% of it was aggressors on the move's side. Only when the burst happens 09:00-22:00 Tirana, Monday-Friday.
   2. Wait for the volume to calm: from 10 s after the burst, the last 10 s trade at <= 30% of the burst's pace.
      Not calm within 2 minutes -> skip it.
   3. Fade it (sell an up-burst / buy a down-burst) 1 s later, 0.2 lot.
@@ -145,8 +145,8 @@ class Engine:
             self.mode, self.burst, self.cool = "idle", None, b["k"] + CALM_MAX
         if k < self.cool or self.at(k - NORM - W) is None:
             return
-        h = tir(k).hour
-        if h < H0 or h >= H1:
+        tk = tir(k)
+        if tk.weekday() >= 5 or tk.hour < H0 or tk.hour >= H1:   # Mon-Fri only (like the backtest; gold CFDs are shut at weekends)
             return
         p0, p1 = self.at(k - W)[3], self.at(k)[3]
         if not (p0 > 0 and p1 > 0) or abs(p1 - p0) < MOVE:
@@ -243,8 +243,8 @@ class Engine:
             b = self.burst
             return {"mode": "wait", "burst": b["move"], "burst_t": tir(b["k"]).strftime("%H:%M:%S"), "volx": b["volx"],
                     "secs": (self.cur or b["k"]) - b["k"]}
-        h = tir(time.time()).hour
-        return {"mode": "idle", "hours": H0 <= h < H1}
+        t = tir(time.time())
+        return {"mode": "idle", "hours": t.weekday() < 5 and H0 <= t.hour < H1}
 
 
 class Runner:
@@ -314,7 +314,7 @@ class Runner:
             "updated": int(time.time() * 1000), "connected": self.connected, "trades_seen": self.engine.n_trades,
             "now": self.engine.now_state(), "today": {"day": today, **self.summary(recs), "list": recs[::-1]},
             "days": days, "all": allsum,
-            "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (09-22 Tirana). Wait until the last 10 s "
+            "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
                      "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
                      "it, trail $2 from break even; 1st bet trails $2 from +$5; max 30 min. Paper trades on Binance prices, "
                      "after ~$0.60/oz per bet (spread + ~$5 fee)."})
