@@ -30,13 +30,14 @@ header button{background:none;border:0;color:var(--txt);font-size:22px;padding:4
 nav{display:flex;background:var(--panel);border-bottom:1px solid var(--line)}
 nav button{flex:1;background:none;border:0;color:var(--dim);padding:9px 0;font-size:14px;font-weight:600;border-bottom:2px solid transparent;cursor:pointer}
 nav button.on{color:var(--txt);border-bottom-color:var(--acc)}
+nav button{white-space:nowrap;min-width:0}@media (max-width:440px){nav button{font-size:12px;letter-spacing:-.01em}}
 main{position:relative;flex:1;min-height:0}
 #cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
 .zoom{position:absolute;left:8px;top:8px;display:flex;gap:6px;z-index:2}
 .zoom button{background:rgba(18,23,34,.92);border:1px solid var(--line);color:var(--txt);border-radius:8px;min-width:38px;height:34px;font-size:16px;cursor:pointer}
 .zoom button.live{font-size:12px;font-weight:700;color:var(--acc)}
 .zoom button.live.away,body.light .zoom button.live.away{background:var(--acc);color:#fff;border-color:var(--acc)}
-#tape,#srv{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+#tape,#srv,#burst{position:absolute;inset:0;overflow:auto;padding:10px 12px calc(16px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
 .hidden{display:none!important}
 #tools{display:flex;align-items:center;gap:2px;padding:0 6px;height:34px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 #tools::-webkit-scrollbar{display:none}
@@ -83,6 +84,9 @@ td:first-child,th:first-child{text-align:left}
 .bigst{font-size:20px;font-weight:700;margin-bottom:6px}.ok{color:#22c55e}.bad{color:#ef4444}.warn{color:#f59e0b}
 #srvLog{white-space:pre-wrap;font-size:11px;color:var(--dim);margin:0;font-family:ui-monospace,Menlo,monospace}
 #srv a{color:#58a6ff}
+#burst .tot{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;font-variant-numeric:tabular-nums}
+#burst .tot b{display:block;font-size:18px}#burst .tot span{font-size:11px;color:var(--dim)}
+#burst td{font-size:12px;padding:5px 3px}#burst .why{font-size:11px;color:var(--dim)}
 .sig{padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
 #toast{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translateX(-50%);background:#1d2433;border:1px solid var(--acc);color:var(--txt);padding:10px 14px;border-radius:10px;font-size:13px;z-index:20;max-width:92vw;box-shadow:0 6px 24px rgba(0,0,0,.5)}
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:30;display:flex;align-items:flex-end;justify-content:center}
@@ -111,6 +115,7 @@ input[type=checkbox]{width:22px;height:22px}
   <button data-tab="hm">Heatmap</button>
   <button data-tab="va">Value Area</button>
   <button data-tab="tape">Tape</button>
+  <button data-tab="burst">Burst</button>
   <button data-tab="srv">Server</button>
 </nav>
 <div id="tools"><span class="grp" id="tfFp"><button data-tf="1">1m</button><button data-tf="5">5m</button><button data-tf="15">15m</button><button data-tf="30">30m</button><button data-tf="60">1h</button><button data-tf="240">4h</button><button data-tf="1440">D</button></span><span class="grp hidden" id="tfHm"><button data-hmm="line">Line</button><button data-hmm="candles">Candles</button><span class="vsep"></span><button data-span="5">5m</button><button data-span="15">15m</button><button data-span="30">30m</button><button data-span="60">1h</button><button data-span="120">2h</button><button id="hmStyleB">Style ▾</button></span><span class="grp hidden" id="tfVa"><button data-vtf="5">5m</button><button data-vtf="15">15m</button><button data-vtf="30">30m</button><button data-vtf="60">1h</button><button data-vtf="240">4h</button><span class="vsep"></span><button id="vaB">Value areas ▾</button></span><span class="sep"></span><span class="st2" id="tStep"></span></div>
@@ -146,6 +151,12 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="card"><h3>Order walls now</h3><div id="wallList"><div class="d">Building the order book — walls appear after about a minute.</div></div></div>
     <div class="card"><h3>Signals</h3><div id="sigs"><div class="d">No signals yet — they appear when a candle closes.</div></div></div>
     <div class="card"><h3>Big trades</h3><table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Lots</th><th>Oz</th></tr></thead><tbody id="big"></tbody></table></div>
+  </div>
+  <div id="burst" class="hidden">
+    <div class="card"><h3>Burst strat · live paper trading</h3><div id="bNow" class="bigst d">Loading…</div><div id="bNowSub" class="d" style="font-size:12px"></div></div>
+    <div class="card"><h3 id="bTodayH">Today</h3><div class="tot" id="bTot"></div><table style="margin-top:8px"><thead><tr><th>Time</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&amp;L</th></tr></thead><tbody id="bList"></tbody></table><div id="bSkips" class="d" style="font-size:12px;margin-top:6px"></div></div>
+    <div class="card"><h3>Every day</h3><div class="tot" id="bAll"></div><table style="margin-top:8px"><thead><tr><th>Day</th><th>Trades</th><th>W / L</th><th>2nd bet</th><th>Full stop</th><th>P&amp;L</th></tr></thead><tbody id="bDays"></tbody></table></div>
+    <div class="card d" style="font-size:12px" id="bRules"></div>
   </div>
   <div id="srv" class="hidden">
     <div class="card"><h3>Recorder server (24/7)</h3><div id="srvState" class="bigst d">Checking…</div><div id="srvSub" class="d" style="font-size:12px"></div><table><tbody id="srvT"></tbody></table></div>
@@ -970,6 +981,53 @@ async function loadBookHistory(minutes) {
   } catch (e) {
     srvHist = {state: 'could not load (' + e.message + ') — live book only'};
   } finally { histBusy = false; renderSrv(); }
+}
+// ---------------------------------------------------------------- burst strat: live paper trades (server/burst.py)
+let burstSt = null, burstBusy = false;
+async function loadBurst() {
+  if (burstBusy) return; burstBusy = true;
+  try { const r = await fetchT(`${SERVER}/burst/state.json?${Date.now()}`, {cache: 'no-store'}); burstSt = r.ok ? await r.json() : {_err: 'not started yet (HTTP ' + r.status + ')'}; }
+  catch (e) { burstSt = {_err: e.message}; }
+  finally { burstBusy = false; renderBurst(); }
+}
+setInterval(() => { if (S.tab === 'burst' && !document.hidden) loadBurst(); }, 3000);
+function usdB(v) { return v == null ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toFixed(0); }
+function clsB(v) { return v > 0 ? 'ok' : v < 0 ? 'bad' : 'd'; }
+function totB(x) {
+  if (!x || !x.n) return '<div><b>0</b><span>trades</span></div><div><b>—</b><span>wins</span></div><div><b>—</b><span>losses</span></div><div><b>$0</b><span>P&amp;L</span></div>';
+  return `<div><b>${x.n}</b><span>trades</span></div><div><b class="ok">${x.wins}</b><span>wins ${Math.round(100 * x.wins / x.n)}%</span></div>` +
+    `<div><b class="bad">${x.n - x.wins}</b><span>losses</span></div><div><b class="${clsB(x.usd)}">${usdB(x.usd)}</b><span>P&amp;L</span></div>`;
+}
+function renderBurst() {
+  if (S.tab !== 'burst') return;
+  const s = burstSt, st = $('#bNow');
+  if (!s) return;
+  if (s._err) { st.textContent = 'Burst watcher not reachable'; st.className = 'bigst bad'; $('#bNowSub').textContent = s._err; return; }
+  const age = (Date.now() - s.updated) / 1000, n = s.now || {};
+  if (age > 60) { st.textContent = 'Burst watcher not responding'; st.className = 'bigst bad'; }
+  else if (!s.connected) { st.textContent = 'Not connected to Binance'; st.className = 'bigst bad'; }
+  else if (n.mode === 'trade') {
+    st.innerHTML = `IN TRADE · ${n.side} ${n.bet2 ? '0.4' : '0.2'} lot · <span class="${clsB(n.usd)}">${usdB(n.usd)}</span>`; st.className = 'bigst';
+  } else if (n.mode === 'wait') { st.textContent = `Burst ${n.burst > 0 ? '▲ +' : '▼ −'}$${Math.abs(n.burst).toFixed(2)} — waiting for volume to calm (${n.secs}s)`; st.className = 'bigst warn'; }
+  else { st.textContent = n.hours ? 'Watching for bursts' : 'Off hours — watches 09:00–22:00 Tirana'; st.className = 'bigst ' + (n.hours ? 'ok' : 'd'); }
+  $('#bNowSub').textContent = n.mode === 'trade'
+    ? `In ${n.in_t} at ${n.entry.toFixed(2)} after a ${n.burst > 0 ? '+' : '−'}$${Math.abs(n.burst).toFixed(2)} burst · now ${n.price.toFixed(2)} · ${n.bet2 ? '2nd bet in at ' + n.add_px.toFixed(2) : '2nd bet at ' + n.add_px.toFixed(2)} · stop ${n.stop != null ? n.stop.toFixed(2) : 'none yet'} · ${n.min} min`
+    : `updated ${Math.round(age)}s ago · Binance prices · times in Tirana`;
+  const T = s.today || {};
+  $('#bTodayH').textContent = 'Today · ' + (T.day || '');
+  $('#bTot').innerHTML = totB(T);
+  const tr = (T.list || []).filter(r => r.kind === 'trade'), sk = (T.list || []).filter(r => r.kind === 'skip');
+  $('#bList').innerHTML = tr.length ? tr.map(r => `<tr><td>${r.in_t.slice(0, 5)}<div class="why">burst ${r.burst > 0 ? '+' : '−'}$${Math.abs(r.burst).toFixed(1)}</div></td>` +
+    `<td class="${r.side === 'BUY' ? 'b' : 's'}">${r.side}${r.bet2 ? '<div class="why">+2nd bet</div>' : ''}</td><td>${r.entry.toFixed(2)}</td>` +
+    `<td>${r.exit.toFixed(2)}<div class="why">${r.out_t.slice(0, 5)} · ${r.why}</div></td><td class="${clsB(r.usd)}"><b>${usdB(r.usd)}</b></td></tr>`).join('')
+    : '<tr><td colspan="5" class="d">No trades yet today.</td></tr>';
+  $('#bSkips').textContent = sk.length ? `${sk.length} burst${sk.length > 1 ? 's' : ''} skipped today (volume did not calm within 2 min).` : '';
+  const A = s.all || {};
+  $('#bAll').innerHTML = A.n ? `<div><b>${A.days}</b><span>days</span></div><div><b class="ok">${A.green_days}</b><span>green days</span></div>` +
+    `<div><b>${A.n}</b><span>trades · ${Math.round(100 * A.wins / A.n)}% wins</span></div><div><b class="${clsB(A.usd)}">${usdB(A.usd)}</b><span>total</span></div>` : '<div class="d" style="grid-column:1/-1">No finished days yet.</div>';
+  $('#bDays').innerHTML = (s.days || []).filter(d => d.n || d.skips).map(d => `<tr><td>${d.day.slice(5)}</td><td>${d.n}</td><td><span class="ok">${d.wins}</span> / <span class="bad">${d.losses}</span></td>` +
+    `<td>${d.bet2}</td><td>${d.full_stops}</td><td class="${clsB(d.usd)}"><b>${usdB(d.usd)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="d">—</td></tr>';
+  $('#bRules').textContent = (s.rules || '') + ' P&L is for 0.2 lot per bet.';
 }
 let srvHistJ = null, srvMulti = null;
 async function loadSrvStatus() {
@@ -2265,12 +2323,12 @@ setInterval(() => { if (!dayT || Date.now() - dayT.at > 3600000 || mt5Day(Date.n
 function setTab(t) {
   S.tab = t; saveS(); xh.on = false;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  const panel = t === 'tape' || t === 'srv';
+  const panel = t === 'tape' || t === 'srv' || t === 'burst';
   $('#tools').classList.toggle('hidden', t !== 'fp' && t !== 'hm' && t !== 'va'); if (t !== 'hm') $('#hmPanel').classList.add('hidden'); if (t !== 'va') { $('#vaPanel').classList.add('hidden'); vaPick = null; }
   $('#tfFp').classList.toggle('hidden', t !== 'fp'); $('#tfHm').classList.toggle('hidden', t !== 'hm'); $('#tfVa').classList.toggle('hidden', t !== 'va'); renderTools();
   if (t === 'va' && !va.busy && (!va.ready || va.tf !== S.vaTf) && !filling) loadVA();
-  $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
-  if (t === 'tape') renderTape(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
+  $('#tape').classList.toggle('hidden', t !== 'tape'); $('#srv').classList.toggle('hidden', t !== 'srv'); $('#burst').classList.toggle('hidden', t !== 'burst'); $('#zoom').classList.toggle('hidden', panel); cv.classList.toggle('hidden', panel);
+  if (t === 'tape') renderTape(); else if (t === 'burst') loadBurst(); else if (t === 'srv') { renderSrv(); loadSrvStatus(); } else { resize(); dirty = true; }
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
 const F = {sTheme: 'theme', sSym: 'sym', sTf: 'tf', sStep: 'step', sAutoRows: 'autoRows', sHstep: 'hstep', sImb: 'imb', sAbs: 'absK', sBig: 'big', sOff: 'offset', sAdj: 'offAdj', sOffMode: 'offMode', sUnit: 'unit', sBack: 'backfill', sWalls: 'walls', sWmult: 'wmult', sWpers: 'wpers', sWrange: 'wrange', sWstep: 'wstep', sWalert: 'walert', sVen: 'venues', sNews: 'news', sGex: 'gex'};
