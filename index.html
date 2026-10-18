@@ -1009,7 +1009,7 @@ function renderBurst() {
   else if (n.mode === 'trade') {
     st.innerHTML = `IN TRADE · ${n.side} ${n.bet2 ? '0.4' : '0.2'} lot · <span class="${clsB(n.usd)}">${usdB(n.usd)}</span>`; st.className = 'bigst';
   } else if (n.mode === 'wait') { st.textContent = `Burst ${n.burst > 0 ? '▲ +' : '▼ −'}$${Math.abs(n.burst).toFixed(2)} — waiting for volume to calm (${n.secs}s)`; st.className = 'bigst warn'; }
-  else { st.textContent = n.hours ? 'Watching for bursts' : 'Off hours — watches 09:00–22:00 Tirana'; st.className = 'bigst ' + (n.hours ? 'ok' : 'd'); }
+  else { st.textContent = n.hours ? 'Watching for bursts' : 'Off hours — watches Mon–Fri 09:00–22:00 Tirana'; st.className = 'bigst ' + (n.hours ? 'ok' : 'd'); }
   $('#bNowSub').textContent = n.mode === 'trade'
     ? `In ${n.in_t} at ${n.entry.toFixed(2)} after a ${n.burst > 0 ? '+' : '−'}$${Math.abs(n.burst).toFixed(2)} burst · now ${n.price.toFixed(2)} · ${n.bet2 ? '2nd bet in at ' + n.add_px.toFixed(2) : '2nd bet at ' + n.add_px.toFixed(2)} · stop ${n.stop != null ? n.stop.toFixed(2) : 'none yet'} · ${n.min} min`
     : `updated ${Math.round(age)}s ago · Binance prices · times in Tirana`;
