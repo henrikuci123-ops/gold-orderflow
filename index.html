@@ -1043,8 +1043,8 @@ function renderBurst() {
     `<td class="${r.side === 'BUY' ? 'b' : 's'}">${r.side}${r.bet2 ? '<div class="why">+2nd bet</div>' : ''}</td><td>${r.entry.toFixed(2)}</td>` +
     `<td>${r.exit.toFixed(2)}<div class="why">${r.out_t.slice(0, 5)} · ${r.why}</div></td><td class="${clsB(r.usd)}"><b>${usdB(r.usd)}</b></td></tr>`).join('')
     : '<tr><td colspan="5" class="d">No trades yet today.</td></tr>';
-  const skB = sk.filter(r => (r.why || '').startsWith('B:')).length, skF = sk.filter(r => /already open/.test(r.why || '')).length, skV = sk.length - skB - skF;
-  $('#bSkips').textContent = [skB ? `${skB} burst${skB > 1 ? 's' : ''} skipped by the exhaustion check (book / pullback)` : '', skF ? `${skF} skipped (2 trades already open)` : '', skV ? `${skV} skipped (volume did not calm within 2 min)` : ''].filter(Boolean).join(' · ');
+  const skB = sk.filter(r => (r.why || '').startsWith('B:')).length, skF = sk.filter(r => /already open|still running/.test(r.why || '')).length, skV = sk.length - skB - skF;
+  $('#bSkips').textContent = [skB ? `${skB} burst${skB > 1 ? 's' : ''} skipped by the exhaustion check (book / pullback)` : '', skF ? `${skF} skipped (a trade from the same move is running, or 2 already open)` : '', skV ? `${skV} skipped (volume did not calm within 2 min)` : ''].filter(Boolean).join(' · ');
   const A = s.all || {};
   $('#bAll').innerHTML = A.n ? `<div><b>${A.days}</b><span>days</span></div><div><b class="ok">${A.green_days}</b><span>green days</span></div>` +
     `<div><b>${A.n}</b><span>trades · ${Math.round(100 * A.wins / A.n)}% wins</span></div><div><b class="${clsB(A.usd)}">${usdB(A.usd)}</b><span>total</span></div>` : '<div class="d" style="grid-column:1/-1">No finished days yet.</div>';
