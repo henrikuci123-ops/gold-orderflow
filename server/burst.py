@@ -8,8 +8,9 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
   3. Fade it (sell an up-burst / buy a down-burst) 1 s later, 0.2 lot.
      2nd bet 0.2 lot if price goes $8 further against -> the stop goes $5 past the 2nd bet; when price is back at
      break even the stop locks there and trails $2 behind the best price.
-     Up to 2 trades open at the same time (Oct 19 2026), each with its own 2nd bet / stop / trailing; a burst that
-     calms while 2 are open is skipped.
+     Up to 2 trades open at the same time (Oct 19 2026), each with its own 2nd bet / stop / trailing. The 2nd slot
+     is for a NEW opportunity while a trade runs long, not for fading the same move again: a burst is only taken
+     if every open trade has been running for at least 15 minutes (Henri's rule); otherwise it is skipped.
      1st bet alone: trailing stop from +$5 profit, $2 behind. No time limit (Henri, Oct 19 2026: removed the 30 min
      max hold - only the stop); a trade still open on Friday 22:55 Tirana is closed (broker shut at the weekend).
   P&L: Binance prices, minus $0.60/oz per bet (spread + slippage + ~$5 broker fee at 0.2 lot), $0.10 extra on stops.
@@ -50,11 +51,12 @@ CALM_W, CALM_F, CALM_MIN, CALM_MAX = 10, 0.3, 10, 120     # calm: last 10 s <= 3
 ADD, STOP_PAST, ACT, TRAIL, TRAIL2 = 8.0, 5.0, 5.0, 2.0, 2.0
 TRAILS = {"A": (5.0, 2.0), "B": (5.0, 2.0), "C": (10.0, 5.0)}   # 1st bet: trail starts at +$X, $Y behind
 MAX_POS = 2                                               # trades open at the same time, each managed on its own
+MIN_GAP = 900                                             # 2nd trade only if the open one has run >= 15 min
 MAX_HOLD = None                                          # no time limit (was 1800 s until Oct 19)
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
-RULES_TAG = "2pos-2"                                         # change it to replay today once after a rule change
+RULES_TAG = "2pos-15m"                                         # change it to replay today once after a rule change
 B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
 
 
@@ -158,7 +160,7 @@ class Engine:
 
     # ---------------------------------------------------------------- the rules
     def process(self, k):
-        n_open = len(self.trades)                        # open at the start of this second
+        n_open = list(self.trades)                       # open at the start of this second
         for T in list(self.trades):
             self.step_trade(T, k)
         if self.mode == "enter":
@@ -228,8 +230,10 @@ class Engine:
     def enter(self, k, n_open):
         b = self.burst
         self.mode, self.burst = "idle", None
-        if n_open >= MAX_POS:
+        if len(n_open) >= MAX_POS:
             return self.finish_skip(b, f"{MAX_POS} trades already open")
+        if any(k - T["k"] < MIN_GAP for T in n_open):
+            return self.finish_skip(b, "a trade opened < 15 min ago is still running (same move)")
         e = self.at(k)[3]
         d = -b["dir"]
         self.trades.append({"b": b, "d": d, "k": k, "e": e, "p2": e - d * ADD, "nb": 1, "best": e, "on": False, "on2": False,
@@ -413,6 +417,7 @@ class Runner:
         self.engines, self.seen, self.days = {}, {}, {}
         for d in self.out.values():
             os.makedirs(d, exist_ok=True)
+        self.reset_today_on_rule_change()
         apply_fixes(self.out)
         for v, d in self.out.items():
             os.makedirs(d, exist_ok=True)
@@ -426,6 +431,23 @@ class Runner:
         self.engine = self.engines["A"]
         self.last_id = 0
         self.connected = False
+
+    def reset_today_on_rule_change(self):
+        """rules changed today: put today's logs aside so the whole day is replayed with the new rules"""
+        t = tir(time.time())
+        if t.weekday() >= 5 or t.hour < H0:
+            return
+        day = t.strftime("%Y-%m-%d")
+        try:
+            if open(os.path.join(OUT, "replayed.txt")).read().strip() == f"{day} {RULES_TAG}":
+                return
+        except OSError:
+            pass
+        for v, d in self.out.items():
+            path = os.path.join(d, day + ".jsonl")
+            if os.path.exists(path):
+                os.replace(path, path + f".before-{RULES_TAG}")
+                log(f"{v}: today's log set aside ({path}.before-{RULES_TAG}), replaying today with {RULES_TAG}")
 
     @staticmethod
     def read(path):
@@ -485,7 +507,7 @@ class Runner:
               **self.block("A", today),
               "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
                        "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
-                       "it, trail $2 from break even; 1st bet trails $2 from +$5; no time limit (Friday 22:55 close); up to 2 trades open at once, each managed on its own. Paper trades on Binance prices, "
+                       "it, trail $2 from break even; 1st bet trails $2 from +$5; no time limit (Friday 22:55 close); up to 2 trades open at once, each managed on its own, the 2nd only if the 1st has run 15+ min. Paper trades on Binance prices, "
                        "after ~$0.60/oz per bet (spread + ~$5 fee).",
               "B": {**self.block("B", today),
                     "rules": "Version B: same, but when the volume has calmed it only fades if the order book leans against "
