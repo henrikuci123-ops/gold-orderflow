@@ -1026,12 +1026,15 @@ function renderBurst() {
   if (age > 60) { st.textContent = 'Burst watcher not responding'; st.className = 'bigst bad'; }
   else if (!s.connected) { st.textContent = 'Not connected to Binance'; st.className = 'bigst bad'; }
   else if (n.mode === 'trade') {
-    st.innerHTML = `IN TRADE · ${n.side} ${n.bet2 ? '0.4' : '0.2'} lot · <span class="${clsB(n.usd)}">${usdB(n.usd)}</span>`; st.className = 'bigst';
+    const tl = n.trades && n.trades.length ? n.trades : [n];
+    st.innerHTML = (tl.length > 1 ? `IN ${tl.length} TRADES · ${tl.reduce((a, x) => a + (x.bet2 ? 0.4 : 0.2), 0).toFixed(1)} lot` : `IN TRADE · ${n.side} ${n.bet2 ? '0.4' : '0.2'} lot`) +
+      ` · <span class="${clsB(n.usd)}">${usdB(n.usd)}</span>`; st.className = 'bigst';
   } else if (n.mode === 'wait') { st.textContent = `Burst ${n.burst > 0 ? '▲ +' : '▼ −'}$${Math.abs(n.burst).toFixed(2)} — waiting for volume to calm (${n.secs}s)`; st.className = 'bigst warn'; }
   else { st.textContent = n.hours ? 'Watching for bursts' : 'Off hours — watches Mon–Fri 09:00–22:00 Tirana'; st.className = 'bigst ' + (n.hours ? 'ok' : 'd'); }
-  $('#bNowSub').textContent = n.mode === 'trade'
-    ? `In ${n.in_t} at ${n.entry.toFixed(2)} after a ${n.burst > 0 ? '+' : '−'}$${Math.abs(n.burst).toFixed(2)} burst · now ${n.price.toFixed(2)} · ${n.bet2 ? '2nd bet in at ' + n.add_px.toFixed(2) : '2nd bet at ' + n.add_px.toFixed(2)} · stop ${n.stop != null ? n.stop.toFixed(2) : 'none yet'} · ${n.min} min`
-    : `updated ${Math.round(age)}s ago · Binance prices · times in Tirana`;
+  $('#bNowSub').innerHTML = n.mode === 'trade'
+    ? (n.trades && n.trades.length ? n.trades : [n]).map(x => `${x.side} in ${x.in_t} at ${x.entry.toFixed(2)} after a ${x.burst > 0 ? '+' : '−'}$${Math.abs(x.burst).toFixed(2)} burst · now ${x.price.toFixed(2)} · ${x.bet2 ? '2nd bet in at ' + x.add_px.toFixed(2) : '2nd bet at ' + x.add_px.toFixed(2)} · stop ${x.stop != null ? x.stop.toFixed(2) : 'none yet'} · ${x.min} min · <b class="${clsB(x.usd)}">${usdB(x.usd)}</b>`).join('<br>') +
+      (n.waiting_burst != null ? `<br>New burst ${n.waiting_burst > 0 ? '+' : '−'}$${Math.abs(n.waiting_burst).toFixed(2)} — waiting for volume to calm` : '')
+    : `updated ${Math.round(age)}s ago · Binance prices · times in Tirana · up to ${n.max_pos || 2} trades at once`;
   const T = s.today || {};
   $('#bTodayH').textContent = 'Today · ' + (T.day || '');
   $('#bTot').innerHTML = totB(T);
@@ -1040,8 +1043,8 @@ function renderBurst() {
     `<td class="${r.side === 'BUY' ? 'b' : 's'}">${r.side}${r.bet2 ? '<div class="why">+2nd bet</div>' : ''}</td><td>${r.entry.toFixed(2)}</td>` +
     `<td>${r.exit.toFixed(2)}<div class="why">${r.out_t.slice(0, 5)} · ${r.why}</div></td><td class="${clsB(r.usd)}"><b>${usdB(r.usd)}</b></td></tr>`).join('')
     : '<tr><td colspan="5" class="d">No trades yet today.</td></tr>';
-  const skB = sk.filter(r => (r.why || '').startsWith('B:')).length, skV = sk.length - skB;
-  $('#bSkips').textContent = [skB ? `${skB} burst${skB > 1 ? 's' : ''} skipped by B's exhaustion check (book / pullback)` : '', skV ? `${skV} skipped (volume did not calm within 2 min)` : ''].filter(Boolean).join(' · ');
+  const skB = sk.filter(r => (r.why || '').startsWith('B:')).length, skF = sk.filter(r => /already open/.test(r.why || '')).length, skV = sk.length - skB - skF;
+  $('#bSkips').textContent = [skB ? `${skB} burst${skB > 1 ? 's' : ''} skipped by the exhaustion check (book / pullback)` : '', skF ? `${skF} skipped (2 trades already open)` : '', skV ? `${skV} skipped (volume did not calm within 2 min)` : ''].filter(Boolean).join(' · ');
   const A = s.all || {};
   $('#bAll').innerHTML = A.n ? `<div><b>${A.days}</b><span>days</span></div><div><b class="ok">${A.green_days}</b><span>green days</span></div>` +
     `<div><b>${A.n}</b><span>trades · ${Math.round(100 * A.wins / A.n)}% wins</span></div><div><b class="${clsB(A.usd)}">${usdB(A.usd)}</b><span>total</span></div>` : '<div class="d" style="grid-column:1/-1">No finished days yet.</div>';
