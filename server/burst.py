@@ -11,7 +11,7 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
      Up to 2 trades open at the same time (Oct 19 2026), each with its own 2nd bet / stop / trailing. The 2nd slot
      is for a NEW opportunity while a trade runs long, not for fading the same move again: a burst is only taken
      if every open trade has been running for at least 15 minutes (Henri's rule); otherwise it is skipped.
-     No new trades from 45 min before until 30 min after a high-impact US news release (ForexFactory calendar,
+     No new trades from 45 min before until 30 min after a high- or medium-impact US news release (ForexFactory calendar,
      <status>/context/calendar.json), so no trade is stuck in the news (Oct 19 2026).
      B and C also need the burst's high (up-burst) / low (down-burst) to have held for 10 s before they fade it.
      1st bet alone: trailing stop from +$5 profit, $2 behind. No time limit (Henri, Oct 19 2026: removed the 30 min
@@ -61,12 +61,12 @@ MAX_HOLD = None                                          # no time limit (was 18
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
-RULES_TAG = "news-nonew"                                         # change it to replay today once after a rule change
+RULES_TAG = "news-nonew-2"                                         # change it to replay today once after a rule change
 B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
 
 
 class News:
-    """high-impact US releases from the calendar the context service downloads; kept in burst/news.json too, so
+    """high- and medium-impact US releases from the calendar the context service downloads; kept in burst/news.json too, so
     past events stay known for replays"""
 
     def __init__(self):
@@ -88,7 +88,7 @@ class News:
             return
         new = False
         for e in cal.get("events", []):
-            if e.get("impact") == "High" and int(e["t"]) // 1000 not in self.events:
+            if e.get("impact") in ("High", "Medium") and int(e["t"]) // 1000 not in self.events:
                 self.events[int(e["t"]) // 1000] = e.get("title", "")
                 new = True
         if new:
