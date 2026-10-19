@@ -356,11 +356,48 @@ class Book:
             pass
 
 
+def apply_fixes(out):
+    """corrections to logged trades (server/burst_fixes.json, from the repo): set the given fields on a record"""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "burst_fixes.json")) as f:
+            fixes = json.load(f)
+    except (OSError, ValueError):
+        return
+    for fx in fixes:
+        for v in fx.get("versions", ["A"]):
+            path = os.path.join(out[v], fx["day"] + ".jsonl")
+            try:
+                with open(path) as f:
+                    lines = f.read().splitlines()
+            except OSError:
+                continue
+            changed = False
+            for i, line in enumerate(lines):
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("id") == fx["id"] and any(r.get(k) != x for k, x in fx["set"].items()):
+                    r.update(fx["set"])
+                    r["fixed"] = fx.get("why_fixed", "corrected")
+                    lines[i] = json.dumps(r, separators=(",", ":"))
+                    changed = True
+            if changed:
+                tmp = path + ".tmp"
+                with open(tmp, "w") as f:
+                    f.write("\n".join(lines) + "\n")
+                os.replace(tmp, path)
+                log(f"fixed {v} {fx['day']} {fx['id']}: {fx['set']}")
+
+
 class Runner:
     def __init__(self):
         self.book = Book()
         self.out = {"A": OUT, "B": os.path.join(OUT, "B")}
         self.engines, self.seen, self.days = {}, {}, {}
+        for d in self.out.values():
+            os.makedirs(d, exist_ok=True)
+        apply_fixes(self.out)
         for v, d in self.out.items():
             os.makedirs(d, exist_ok=True)
             self.engines[v] = Engine(lambda rec, v=v: self.on_rec(v, rec), v, self.book.at)

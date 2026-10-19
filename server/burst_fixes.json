@@ -1,0 +1,5 @@
+[
+  {"why_fixed": "Oct 19 2026: Henri never had a 30 min max hold - recalculated with his rules only (no time limit) on the recorded Binance prices",
+   "versions": ["A", "B"], "day": "2026-10-19", "id": "t1792393485",
+   "set": {"out_t": "10:00:50", "exit": 4181.41, "why": "trailing profit", "usd": 194.4, "hold_min": 56.1, "mfe": 12.42, "mae": 5.02, "mt5_out": null}}
+]
