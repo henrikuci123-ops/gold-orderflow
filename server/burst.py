@@ -22,6 +22,8 @@ only fades if the burst looks exhausted -
 
 Writes  <status>/burst/YYYY-MM-DD.jsonl   version A: one line per finished trade or skipped burst (Tirana day)
         <status>/burst/B/YYYY-MM-DD.jsonl version B
+        <status>/burst/C/YYYY-MM-DD.jsonl version C (Oct 19 2026): B's entries, but the 1st bet's trailing stop
+                                          starts at +$10 profit and stays $5 behind (A and B: +$5, $2 behind)
         <status>/burst/state.json         what each version is doing now, today's trades, every day's totals
 On start it replays the recorder's files - the last ~80 minutes, or from just before the burst of a trade that is
 still open (burst/open.json), so a trade of any length survives a restart - without writing anything twice.
@@ -44,6 +46,7 @@ TZ = ZoneInfo("Europe/Tirane")
 W, MOVE, SHARE, VOLX, NORM = 30, 3.0, 0.6, 2.0, 1800      # burst: $3 in 30 s, 60% one side, 2x normal 30 s
 CALM_W, CALM_F, CALM_MIN, CALM_MAX = 10, 0.3, 10, 120     # calm: last 10 s <= 30% of burst pace, 10..120 s after
 ADD, STOP_PAST, ACT, TRAIL, TRAIL2 = 8.0, 5.0, 5.0, 2.0, 2.0
+TRAILS = {"A": (5.0, 2.0), "B": (5.0, 2.0), "C": (10.0, 5.0)}   # 1st bet: trail starts at +$X, $Y behind
 MAX_HOLD = None                                          # no time limit (was 1800 s until Oct 19)
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
@@ -86,9 +89,9 @@ def mt5_quote():
 class Engine:
     """Per-second state machine. Feed trades with add(); call tick() every second (also when there are no trades)."""
 
-    def __init__(self, emit, variant="A", book_at=None):
+    def __init__(self, emit, variant="A", book_at=None, act=ACT, trail=TRAIL):
         self.emit = emit                  # emit(rec) for finished trades / skipped bursts
-        self.variant, self.book_at = variant, book_at
+        self.variant, self.book_at, self.act, self.trail = variant, book_at, act, trail
         self.buf = deque()                # closed seconds: (sec, cumulative buy, cumulative sell, price, high, low)
         self.hi_cur = self.lo_cur = None
         self.cb = self.cs = 0.0
@@ -162,7 +165,7 @@ class Engine:
             if v / CALM_W <= CALM_F * b["pace"]:
                 b["calm"] = k
                 self.exhaustion(b, k)
-                if self.variant == "B" and not b["ok_b"]:
+                if self.variant in ("B", "C") and not b["ok_b"]:
                     self.finish_skip(b, b["why_b"])
                     self.mode, self.burst, self.cool = "idle", None, k + 1
                     return
@@ -248,10 +251,10 @@ class Engine:
         else:
             if d * (p - T["best"]) > 0:
                 T["best"] = p
-            if d * (T["best"] - e) >= ACT:
+            if d * (T["best"] - e) >= self.act:
                 T["on"] = True
             if T["on"]:
-                ns = T["best"] - d * TRAIL
+                ns = T["best"] - d * self.trail
                 if T["stop"] is None or d * (ns - T["stop"]) > 0:
                     T["stop"] = ns
         if MAX_HOLD and j >= T["k"] + MAX_HOLD:
@@ -393,14 +396,14 @@ def apply_fixes(out):
 class Runner:
     def __init__(self):
         self.book = Book()
-        self.out = {"A": OUT, "B": os.path.join(OUT, "B")}
+        self.out = {"A": OUT, "B": os.path.join(OUT, "B"), "C": os.path.join(OUT, "C")}
         self.engines, self.seen, self.days = {}, {}, {}
         for d in self.out.values():
             os.makedirs(d, exist_ok=True)
         apply_fixes(self.out)
         for v, d in self.out.items():
             os.makedirs(d, exist_ok=True)
-            self.engines[v] = Engine(lambda rec, v=v: self.on_rec(v, rec), v, self.book.at)
+            self.engines[v] = Engine(lambda rec, v=v: self.on_rec(v, rec), v, self.book.at, *TRAILS[v])
             self.seen[v] = set()
             for p in sorted(glob.glob(os.path.join(d, "*.jsonl")))[-3:]:
                 for r in self.read(p):
@@ -474,7 +477,10 @@ class Runner:
               "B": {**self.block("B", today),
                     "rules": "Version B: same, but when the volume has calmed it only fades if the order book leans against "
                              "the burst (resting size within $1.5 on the far side >= the near side) and price has already "
-                             "pulled back $0.50+ from the burst's extreme. Otherwise it skips the burst."}}
+                             "pulled back $0.50+ from the burst's extreme. Otherwise it skips the burst."},
+              "C": {**self.block("C", today),
+                    "rules": "Version C: B's entries (book + pullback check), but the 1st bet's trailing stop starts at "
+                             "+$10 profit and stays $5 behind (A and B: from +$5, $2 behind). Everything else the same."}}
         write_json(os.path.join(OUT, "state.json"), st)
         write_json(os.path.join(OUT, "open.json"),       # bursts of trades still open, for a restart
                    {v: e.trade["b"]["k"] for v, e in self.engines.items() if e.mode == "trade" and e.trade})
@@ -487,6 +493,11 @@ class Runner:
                 opened = {v: int(k) for v, k in json.load(f).items() if v in self.engines}
         except (OSError, ValueError, TypeError):
             opened = {}
+        t = tir(now / 1000)                               # a version with nothing logged today yet (just added):
+        if t.weekday() < 5 and t.hour >= H0:              # replay today from 08:25 Tirana so it gets today's trades
+            day = t.strftime("%Y-%m-%d")
+            if any(not os.path.exists(os.path.join(d, day + ".jsonl")) for d in self.out.values()):
+                start = min(start, int(t.replace(hour=H0 - 1, minute=25, second=0, microsecond=0).timestamp() * 1000))
         for v, k in opened.items():                       # replay that trade from its burst, no earlier entries
             if k * 1000 > now - 24 * 3600000:
                 start = min(start, k * 1000 - 32 * 60000)
