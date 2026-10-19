@@ -54,7 +54,7 @@ MAX_HOLD = None                                          # no time limit (was 18
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
-RULES_TAG = "2pos"                                         # change it to replay today once after a rule change
+RULES_TAG = "2pos-2"                                         # change it to replay today once after a rule change
 B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
 
 
@@ -506,6 +506,7 @@ class Runner:
                 opened = {v: int(k) for v, k in json.load(f).items() if v in self.engines}
         except (OSError, ValueError, TypeError):
             opened = {}
+        full = False
         t = tir(now / 1000)                               # a version with nothing logged today yet (just added):
         if t.weekday() < 5 and t.hour >= H0:              # replay today from 08:25 Tirana so it gets today's trades
             day = t.strftime("%Y-%m-%d")
@@ -516,12 +517,14 @@ class Runner:
                 done = False
             if not done or any(not os.path.exists(os.path.join(d, day + ".jsonl")) for d in self.out.values()):
                 start = min(start, int(t.replace(hour=H0 - 1, minute=25, second=0, microsecond=0).timestamp() * 1000))
+                full = True
                 with open(tag_path, "w") as f:               # rules changed today: replay the whole day once
                     f.write(tag)
         for v, k in opened.items():                       # replay that trade from its burst, no earlier entries
             if k * 1000 > now - 24 * 3600000:
                 start = min(start, k * 1000 - 32 * 60000)
-                self.engines[v].cool = k
+                if not full:                              # (a whole-day replay rebuilds the open trades itself)
+                    self.engines[v].cool = k
         nb = self.book.load_recorded(start - 5 * 60000)
         trades = []
         for h in range((now - start) // 3600000 + 1, -1, -1):
