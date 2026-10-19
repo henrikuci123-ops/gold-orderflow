@@ -155,9 +155,9 @@ input[type=checkbox]{width:22px;height:22px}
     <div class="card"><h3>Big trades</h3><table><thead><tr><th>Time</th><th>Side</th><th>Price</th><th>Lots</th><th>Oz</th></tr></thead><tbody id="big"></tbody></table></div>
   </div>
   <div id="burst" class="hidden">
-    <div class="seg" id="bSeg"><button data-v="A">A · current</button><button data-v="B">B · book + pullback</button></div>
+    <div class="seg" id="bSeg"><button data-v="A">A · current</button><button data-v="B">B · book</button><button data-v="C">C · trail $10</button></div>
     <div class="card"><h3 id="bNowH">Burst strat · live paper trading</h3><div id="bNow" class="bigst d">Loading…</div><div id="bNowSub" class="d" style="font-size:12px"></div></div>
-    <div class="card"><h3>A vs B</h3><table><thead><tr><th></th><th>A · current</th><th>B · book + pullback</th></tr></thead><tbody id="bCmp"></tbody></table></div>
+    <div class="card"><h3>A vs B vs C</h3><table><thead><tr><th></th><th>A</th><th>B</th><th>C</th></tr></thead><tbody id="bCmp"></tbody></table></div>
     <div class="card"><h3 id="bTodayH">Today</h3><div class="tot" id="bTot"></div><table style="margin-top:8px"><thead><tr><th>Time</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&amp;L</th></tr></thead><tbody id="bList"></tbody></table><div id="bSkips" class="d" style="font-size:12px;margin-top:6px"></div></div>
     <div class="card"><h3>Every day</h3><div class="tot" id="bAll"></div><table style="margin-top:8px"><thead><tr><th>Day</th><th>Trades</th><th>W / L</th><th>2nd bet</th><th>Full stop</th><th>P&amp;L</th></tr></thead><tbody id="bDays"></tbody></table></div>
     <div class="card d" style="font-size:12px" id="bRules"></div>
@@ -1004,23 +1004,22 @@ function totB(x) {
 }
 document.querySelectorAll('#bSeg button').forEach(b => b.onclick = () => { S.burstV = b.dataset.v; saveS(); renderBurst(); });
 function cmpB(s) {
-  const A = s.all || {}, B = (s.B && s.B.all) || {}, tA = s.today || {}, tB = (s.B && s.B.today) || {};
+  const V = [s, s.B || {}, s.C || {}], al = V.map(x => x.all || {}), td = V.map(x => x.today || {});
   const pct = (a, b) => b ? Math.round(100 * a / b) + '%' : '—';
-  const rows = [['Trades', A.n || 0, B.n || 0], ['Wins', pct(A.wins, A.n), pct(B.wins, B.n)],
-    ['Needed 2nd bet', A.n ? `${A.bet2 || 0} (${pct(A.bet2 || 0, A.n)})` : '—', B.n ? `${B.bet2 || 0} (${pct(B.bet2 || 0, B.n)})` : '—'],
-    ['Full stops', A.full_stops || 0, B.full_stops || 0], ['Green days', A.days ? `${A.green_days}/${A.days}` : '—', B.days ? `${B.green_days}/${B.days}` : '—'],
-    ['Avg per day', A.days ? usdB(A.usd / A.days) : '—', B.days ? usdB(B.usd / B.days) : '—'],
-    ['Total P&amp;L', usdB(A.usd || 0), usdB(B.usd || 0)], ['Today', usdB(tA.usd || 0), usdB(tB.usd || 0)]];
-  $('#bCmp').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('');
+  const row = (name, f) => `<tr><td>${name}</td>${al.map((x, i) => `<td>${f(x, td[i])}</td>`).join('')}</tr>`;
+  $('#bCmp').innerHTML = [row('Trades', x => x.n || 0), row('Wins', x => pct(x.wins, x.n)),
+    row('Needed 2nd bet', x => x.n ? `${x.bet2 || 0} (${pct(x.bet2 || 0, x.n)})` : '—'), row('Full stops', x => x.full_stops || 0),
+    row('Green days', x => x.days ? `${x.green_days}/${x.days}` : '—'), row('Avg per day', x => x.days ? usdB(x.usd / x.days) : '—'),
+    row('Total P&amp;L', x => usdB(x.usd || 0)), row('Today', (x, t) => usdB(t.usd || 0))].join('');
 }
 function renderBurst() {
   if (S.tab !== 'burst') return;
   const s0 = burstSt, st = $('#bNow');
   if (!s0) return;
-  const v = S.burstV === 'B' && s0.B ? 'B' : 'A';
+  const v = (S.burstV === 'B' || S.burstV === 'C') && s0[S.burstV] ? S.burstV : 'A';
   document.querySelectorAll('#bSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-  const s = v === 'B' ? Object.assign({}, s0, s0.B) : s0;
-  $('#bNowH').textContent = v === 'B' ? 'Version B · book + pullback' : 'Version A · current rules';
+  const s = v === 'A' ? s0 : Object.assign({}, s0, s0[v]);
+  $('#bNowH').textContent = {A: 'Version A · current rules', B: 'Version B · book + pullback', C: 'Version C · B + trail from +$10, $5 behind'}[v];
   if (!s0._err) cmpB(s0);
   if (s._err) { st.textContent = 'Burst watcher not reachable'; st.className = 'bigst bad'; $('#bNowSub').textContent = s._err; return; }
   const age = (Date.now() - s.updated) / 1000, n = s.now || {};
