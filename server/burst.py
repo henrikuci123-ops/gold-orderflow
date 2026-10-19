@@ -11,6 +11,9 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
      Up to 2 trades open at the same time (Oct 19 2026), each with its own 2nd bet / stop / trailing. The 2nd slot
      is for a NEW opportunity while a trade runs long, not for fading the same move again: a burst is only taken
      if every open trade has been running for at least 15 minutes (Henri's rule); otherwise it is skipped.
+     No new trades from 45 min before until 30 min after a high-impact US news release (ForexFactory calendar,
+     <status>/context/calendar.json), so no trade is stuck in the news (Oct 19 2026).
+     B and C also need the burst's high (up-burst) / low (down-burst) to have held for 10 s before they fade it.
      1st bet alone: trailing stop from +$5 profit, $2 behind. No time limit (Henri, Oct 19 2026: removed the 30 min
      max hold - only the stop); a trade still open on Friday 22:55 Tirana is closed (broker shut at the weekend).
   P&L: Binance prices, minus $0.60/oz per bet (spread + slippage + ~$5 broker fee at 0.2 lot), $0.10 extra on stops.
@@ -52,12 +55,56 @@ ADD, STOP_PAST, ACT, TRAIL, TRAIL2 = 8.0, 5.0, 5.0, 2.0, 2.0
 TRAILS = {"A": (5.0, 2.0), "B": (5.0, 2.0), "C": (10.0, 5.0)}   # 1st bet: trail starts at +$X, $Y behind
 MAX_POS = 2                                               # trades open at the same time, each managed on its own
 MIN_GAP = 900                                             # 2nd trade only if the open one has run >= 15 min
+NEWS_BEFORE, NEWS_AFTER = 45 * 60, 30 * 60                # no new trades around high-impact US news
+NO_NEW = {"A": 0, "B": 10, "C": 10}                       # s the burst's extreme must hold before fading it
 MAX_HOLD = None                                          # no time limit (was 1800 s until Oct 19)
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
-RULES_TAG = "2pos-15m"                                         # change it to replay today once after a rule change
+RULES_TAG = "news-nonew"                                         # change it to replay today once after a rule change
 B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
+
+
+class News:
+    """high-impact US releases from the calendar the context service downloads; kept in burst/news.json too, so
+    past events stay known for replays"""
+
+    def __init__(self):
+        self.events, self.loaded = {}, 0
+        try:
+            with open(os.path.join(OUT, "news.json")) as f:
+                self.events = {int(k): v for k, v in json.load(f).items()}
+        except (OSError, ValueError):
+            pass
+
+    def refresh(self):
+        if time.time() - self.loaded < 60:
+            return
+        self.loaded = time.time()
+        try:
+            with open(os.path.join(WWW, "context", "calendar.json")) as f:
+                cal = json.load(f)
+        except (OSError, ValueError):
+            return
+        new = False
+        for e in cal.get("events", []):
+            if e.get("impact") == "High" and int(e["t"]) // 1000 not in self.events:
+                self.events[int(e["t"]) // 1000] = e.get("title", "")
+                new = True
+        if new:
+            try:
+                write_json(os.path.join(OUT, "news.json"), {str(k): v for k, v in self.events.items()})
+            except OSError:
+                pass
+
+    def block(self, sec):
+        for t, title in self.events.items():
+            if t - NEWS_BEFORE <= sec < t + NEWS_AFTER:
+                return f"news: {title} at {tir(t):%H:%M}"
+        return None
+
+
+NEWS = News()
 
 
 def book_sides(rec):
@@ -98,6 +145,7 @@ class Engine:
     def __init__(self, emit, variant="A", book_at=None, act=ACT, trail=TRAIL):
         self.emit = emit                  # emit(rec) for finished trades / skipped bursts
         self.variant, self.book_at, self.act, self.trail = variant, book_at, act, trail
+        self.no_new = NO_NEW.get(variant, 0)
         self.buf = deque()                # closed seconds: (sec, cumulative buy, cumulative sell, price, high, low)
         self.hi_cur = self.lo_cur = None
         self.cb = self.cs = 0.0
@@ -167,10 +215,13 @@ class Engine:
             self.enter(k, n_open)
         elif self.mode == "wait":
             b = self.burst
+            x = self.at(k)
+            if (x[4] >= b["ext"]) if b["dir"] > 0 else (x[5] <= b["ext"]):
+                b["ext"], b["text"] = (x[4] if b["dir"] > 0 else x[5]), k
             if k < b["k"] + CALM_MIN:
                 return
             v = sum(self.vol(k - CALM_W, k))
-            if v / CALM_W <= CALM_F * b["pace"]:
+            if v / CALM_W <= CALM_F * b["pace"] and k - b["text"] >= self.no_new:
                 b["calm"] = k
                 self.exhaustion(b, k)
                 self.cool = k + 1
@@ -201,6 +252,13 @@ class Engine:
             return
         self.burst = {"k": k, "move": round(p1 - p0, 2), "dir": d, "pace": tot / W, "volx": round(tot / avg, 1) if avg > 0 else None,
                       "share": round(share, 2), "from": p0, "to": p1}
+        ext, text = None, k                               # the burst's extreme so far and when it was made
+        for i in range(k - W, k + 1):
+            x = self.at(i)
+            v = x[4] if d > 0 else x[5]
+            if ext is None or (v >= ext if d > 0 else v <= ext):
+                ext, text = v, i
+        self.burst["ext"], self.burst["text"] = ext, text
         self.mode = "wait"
 
     def exhaustion(self, b, k):
@@ -230,6 +288,9 @@ class Engine:
     def enter(self, k, n_open):
         b = self.burst
         self.mode, self.burst = "idle", None
+        nb = NEWS.block(k)
+        if nb:
+            return self.finish_skip(b, nb)
         if len(n_open) >= MAX_POS:
             return self.finish_skip(b, f"{MAX_POS} trades already open")
         if any(k - T["k"] < MIN_GAP for T in n_open):
@@ -521,6 +582,7 @@ class Runner:
                    {v: min(T["b"]["k"] for T in e.trades) for v, e in self.engines.items() if e.trades})
 
     def replay(self):
+        NEWS.refresh()
         now = int(time.time() * 1000)
         start = now - 80 * 60000
         try:
@@ -600,6 +662,7 @@ class Runner:
         while True:
             await asyncio.sleep(1)
             self.book.poll()
+            NEWS.refresh()
             for e in self.engines.values():
                 e.tick(int(time.time() * 1000))
             n += 1
