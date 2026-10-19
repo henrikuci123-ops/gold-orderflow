@@ -8,6 +8,8 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
   3. Fade it (sell an up-burst / buy a down-burst) 1 s later, 0.2 lot.
      2nd bet 0.2 lot if price goes $8 further against -> the stop goes $5 past the 2nd bet; when price is back at
      break even the stop locks there and trails $2 behind the best price.
+     Up to 2 trades open at the same time (Oct 19 2026), each with its own 2nd bet / stop / trailing; a burst that
+     calms while 2 are open is skipped.
      1st bet alone: trailing stop from +$5 profit, $2 behind. No time limit (Henri, Oct 19 2026: removed the 30 min
      max hold - only the stop); a trade still open on Friday 22:55 Tirana is closed (broker shut at the weekend).
   P&L: Binance prices, minus $0.60/oz per bet (spread + slippage + ~$5 broker fee at 0.2 lot), $0.10 extra on stops.
@@ -47,10 +49,12 @@ W, MOVE, SHARE, VOLX, NORM = 30, 3.0, 0.6, 2.0, 1800      # burst: $3 in 30 s, 6
 CALM_W, CALM_F, CALM_MIN, CALM_MAX = 10, 0.3, 10, 120     # calm: last 10 s <= 30% of burst pace, 10..120 s after
 ADD, STOP_PAST, ACT, TRAIL, TRAIL2 = 8.0, 5.0, 5.0, 2.0, 2.0
 TRAILS = {"A": (5.0, 2.0), "B": (5.0, 2.0), "C": (10.0, 5.0)}   # 1st bet: trail starts at +$X, $Y behind
+MAX_POS = 2                                               # trades open at the same time, each managed on its own
 MAX_HOLD = None                                          # no time limit (was 1800 s until Oct 19)
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
+RULES_TAG = "2pos"                                         # change it to replay today once after a rule change
 B_BOOK, B_PULL, BOOK_NEAR, BOOK_AGE = 1.0, 0.5, 1.5, 10   # version B: book ratio >= 1, pulled back >= $0.50
 
 
@@ -99,7 +103,8 @@ class Engine:
         self.cb_cur = self.cs_cur = 0.0
         self.px = 0.0
         self.mode, self.cool = "idle", 0
-        self.burst = self.trade = None
+        self.burst = None
+        self.trades = []                  # open trades (up to MAX_POS at the same time)
         self.live = True                  # False while replaying recorded trades
         self.n_trades = 0
 
@@ -153,11 +158,12 @@ class Engine:
 
     # ---------------------------------------------------------------- the rules
     def process(self, k):
-        if self.mode == "trade":
-            return self.step_trade(k)
+        n_open = len(self.trades)                        # open at the start of this second
+        for T in list(self.trades):
+            self.step_trade(T, k)
         if self.mode == "enter":
-            return self.enter(k)
-        if self.mode == "wait":
+            self.enter(k, n_open)
+        elif self.mode == "wait":
             b = self.burst
             if k < b["k"] + CALM_MIN:
                 return
@@ -165,9 +171,10 @@ class Engine:
             if v / CALM_W <= CALM_F * b["pace"]:
                 b["calm"] = k
                 self.exhaustion(b, k)
+                self.cool = k + 1
                 if self.variant in ("B", "C") and not b["ok_b"]:
                     self.finish_skip(b, b["why_b"])
-                    self.mode, self.burst, self.cool = "idle", None, k + 1
+                    self.mode, self.burst = "idle", None
                     return
                 self.mode = "enter"
                 return
@@ -175,7 +182,7 @@ class Engine:
                 return
             self.finish_skip(b)
             self.mode, self.burst, self.cool = "idle", None, b["k"] + CALM_MAX
-        if k < self.cool or self.at(k - NORM - W) is None:
+        if self.mode != "idle" or k < self.cool or self.at(k - NORM - W) is None:
             return
         tk = tir(k)
         if tk.weekday() >= 5 or tk.hour < H0 or tk.hour >= H1:   # Mon-Fri only (like the backtest; gold CFDs are shut at weekends)
@@ -218,17 +225,18 @@ class Engine:
             why.append(f"no pullback yet (${b['pull']:.2f})")
         b["ok_b"], b["why_b"] = not why, "B: " + ", ".join(why)
 
-    def enter(self, k):
+    def enter(self, k, n_open):
         b = self.burst
+        self.mode, self.burst = "idle", None
+        if n_open >= MAX_POS:
+            return self.finish_skip(b, f"{MAX_POS} trades already open")
         e = self.at(k)[3]
         d = -b["dir"]
-        self.trade = {"b": b, "d": d, "k": k, "e": e, "p2": e - d * ADD, "nb": 1, "best": e, "on": False, "on2": False,
-                      "best2": None, "stop": None, "tgt": None, "mfe": 0.0, "mae": 0.0, "t2": None,
-                      "mt5_in": mt5_quote() if self.live else None}
-        self.mode = "trade"
+        self.trades.append({"b": b, "d": d, "k": k, "e": e, "p2": e - d * ADD, "nb": 1, "best": e, "on": False, "on2": False,
+                            "best2": None, "stop": None, "tgt": None, "mfe": 0.0, "mae": 0.0, "t2": None,
+                            "mt5_in": mt5_quote() if self.live else None})
 
-    def step_trade(self, j):
-        T = self.trade
+    def step_trade(self, T, j):
         d, e, p = T["d"], T["e"], self.at(j)[3]
         T["mfe"] = max(T["mfe"], d * (p - e))
         T["mae"] = max(T["mae"], -d * (p - e))
@@ -238,7 +246,7 @@ class Engine:
             T["tgt"] = (e + T["p2"]) / 2 + d * COST / 2
         if T["stop"] is not None and d * (p - T["stop"]) <= 0:
             why = "full stop" if (T["nb"] == 2 and not T["on2"]) else ("trail after 2nd bet" if T["nb"] == 2 else "trailing profit")
-            return self.finish_trade(j, T["stop"] - d * STOP_SLIP, why)
+            return self.finish_trade(T, j, T["stop"] - d * STOP_SLIP, why)
         if T["nb"] == 2:
             if d * (p - T["best2"]) > 0:
                 T["best2"] = p
@@ -258,10 +266,10 @@ class Engine:
                 if T["stop"] is None or d * (ns - T["stop"]) > 0:
                     T["stop"] = ns
         if MAX_HOLD and j >= T["k"] + MAX_HOLD:
-            return self.finish_trade(j, p, "max hold")
+            return self.finish_trade(T, j, p, "max hold")
         tj = tir(j)
         if tj.weekday() == 4 and (tj.hour, tj.minute) >= (22, 55):
-            return self.finish_trade(j, p, "closed before the weekend")
+            return self.finish_trade(T, j, p, "closed before the weekend")
 
     def pnl(self, T, xp):
         d = T["d"]
@@ -270,8 +278,8 @@ class Engine:
             r += d * (xp - T["p2"]) - COST
         return r * OZ
 
-    def finish_trade(self, j, xp, why):
-        T, b = self.trade, self.trade["b"]
+    def finish_trade(self, T, j, xp, why):
+        b = T["b"]
         usd = self.pnl(T, xp)
         rec = {"kind": "trade", "id": f"t{T['k']}", "day": tir(b["k"]).strftime("%Y-%m-%d"),
                "burst_t": tir(b["k"]).strftime("%H:%M:%S"), "burst": b["move"], "volx": b["volx"], "share": b["share"],
@@ -281,8 +289,8 @@ class Engine:
                "out_t": tir(j).strftime("%H:%M:%S"), "exit": round(xp, 2), "why": why, "usd": round(usd, 2),
                "hold_min": round((j - T["k"]) / 60, 1), "mfe": round(T["mfe"], 2), "mae": round(T["mae"], 2),
                "mt5_in": T["mt5_in"], "mt5_out": mt5_quote() if self.live else None, "t": T["k"] * 1000,
-               "v": self.variant, "book": b.get("book"), "pull": b.get("pull")}
-        self.mode, self.trade, self.burst, self.cool = "idle", None, None, j + 1
+               "v": self.variant, "book": b.get("book"), "pull": b.get("pull"), "open_with": len(self.trades) - 1}
+        self.trades.remove(T)
         self.emit(rec)
 
     def finish_skip(self, b, why="volume did not calm within 2 min"):
@@ -292,19 +300,24 @@ class Engine:
 
     # ---------------------------------------------------------------- for the app
     def now_state(self):
-        if self.mode == "trade":
-            T = self.trade
-            p = self.px
-            return {"mode": "trade", "side": "SELL" if T["d"] < 0 else "BUY", "in_t": tir(T["k"]).strftime("%H:%M:%S"),
-                    "entry": round(T["e"], 2), "add_px": round(T["p2"], 2), "bet2": T["nb"] == 2, "price": round(p, 2),
-                    "stop": round(T["stop"], 2) if T["stop"] is not None else None, "usd": round(self.pnl(T, p), 2),
-                    "burst": T["b"]["move"], "min": round((self.cur - T["k"]) / 60, 1)}
-        if self.mode in ("wait", "enter"):
+        p = self.px
+        trades = [{"side": "SELL" if T["d"] < 0 else "BUY", "in_t": tir(T["k"]).strftime("%H:%M:%S"),
+                   "entry": round(T["e"], 2), "add_px": round(T["p2"], 2), "bet2": T["nb"] == 2, "price": round(p, 2),
+                   "stop": round(T["stop"], 2) if T["stop"] is not None else None, "usd": round(self.pnl(T, p), 2),
+                   "burst": T["b"]["move"], "min": round((self.cur - T["k"]) / 60, 1)} for T in self.trades]
+        st = {"trades": trades, "max_pos": MAX_POS}
+        if trades:
+            st.update(trades[0], mode="trade", usd=round(sum(x["usd"] for x in trades), 2))
+        elif self.mode in ("wait", "enter"):
             b = self.burst
-            return {"mode": "wait", "burst": b["move"], "burst_t": tir(b["k"]).strftime("%H:%M:%S"), "volx": b["volx"],
-                    "secs": (self.cur or b["k"]) - b["k"]}
-        t = tir(time.time())
-        return {"mode": "idle", "hours": t.weekday() < 5 and H0 <= t.hour < H1}
+            st.update(mode="wait", burst=b["move"], burst_t=tir(b["k"]).strftime("%H:%M:%S"), volx=b["volx"],
+                      secs=(self.cur or b["k"]) - b["k"])
+        else:
+            t = tir(time.time())
+            st.update(mode="idle", hours=t.weekday() < 5 and H0 <= t.hour < H1)
+        if trades and self.mode in ("wait", "enter"):
+            st["waiting_burst"] = self.burst["move"]
+        return st
 
 
 class Book:
@@ -456,7 +469,7 @@ class Runner:
                 self.days[v][day] = self.summary(self.read(p))
 
     def block(self, v, today):
-        recs = self.read(os.path.join(self.out[v], today + ".jsonl"))
+        recs = sorted(self.read(os.path.join(self.out[v], today + ".jsonl")), key=lambda r: r.get("t", 0))
         days = [dict(day=k, **x) for k, x in sorted(self.days[v].items(), reverse=True)][:60]
         tr_days = [x for x in days if x["n"] > 0]
         allsum = {"days": len(tr_days), "n": sum(x["n"] for x in tr_days), "wins": sum(x["wins"] for x in tr_days),
@@ -472,7 +485,7 @@ class Runner:
               **self.block("A", today),
               "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
                        "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
-                       "it, trail $2 from break even; 1st bet trails $2 from +$5; no time limit (Friday 22:55 close). Paper trades on Binance prices, "
+                       "it, trail $2 from break even; 1st bet trails $2 from +$5; no time limit (Friday 22:55 close); up to 2 trades open at once, each managed on its own. Paper trades on Binance prices, "
                        "after ~$0.60/oz per bet (spread + ~$5 fee).",
               "B": {**self.block("B", today),
                     "rules": "Version B: same, but when the volume has calmed it only fades if the order book leans against "
@@ -483,7 +496,7 @@ class Runner:
                              "+$10 profit and stays $5 behind (A and B: from +$5, $2 behind). Everything else the same."}}
         write_json(os.path.join(OUT, "state.json"), st)
         write_json(os.path.join(OUT, "open.json"),       # bursts of trades still open, for a restart
-                   {v: e.trade["b"]["k"] for v, e in self.engines.items() if e.mode == "trade" and e.trade})
+                   {v: min(T["b"]["k"] for T in e.trades) for v, e in self.engines.items() if e.trades})
 
     def replay(self):
         now = int(time.time() * 1000)
@@ -496,8 +509,15 @@ class Runner:
         t = tir(now / 1000)                               # a version with nothing logged today yet (just added):
         if t.weekday() < 5 and t.hour >= H0:              # replay today from 08:25 Tirana so it gets today's trades
             day = t.strftime("%Y-%m-%d")
-            if any(not os.path.exists(os.path.join(d, day + ".jsonl")) for d in self.out.values()):
+            tag_path, tag = os.path.join(OUT, "replayed.txt"), f"{day} {RULES_TAG}"
+            try:
+                done = open(tag_path).read().strip() == tag
+            except OSError:
+                done = False
+            if not done or any(not os.path.exists(os.path.join(d, day + ".jsonl")) for d in self.out.values()):
                 start = min(start, int(t.replace(hour=H0 - 1, minute=25, second=0, microsecond=0).timestamp() * 1000))
+                with open(tag_path, "w") as f:               # rules changed today: replay the whole day once
+                    f.write(tag)
         for v, k in opened.items():                       # replay that trade from its burst, no earlier entries
             if k * 1000 > now - 24 * 3600000:
                 start = min(start, k * 1000 - 32 * 60000)
