@@ -8,7 +8,8 @@ Same rules as the backtest on the recorded Binance ticks (Oct 1-16 2026), checke
   3. Fade it (sell an up-burst / buy a down-burst) 1 s later, 0.2 lot.
      2nd bet 0.2 lot if price goes $8 further against -> the stop goes $5 past the 2nd bet; when price is back at
      break even the stop locks there and trails $2 behind the best price.
-     1st bet alone: trailing stop from +$5 profit, $2 behind. Max hold 30 minutes.
+     1st bet alone: trailing stop from +$5 profit, $2 behind. No time limit (Henri, Oct 19 2026: removed the 30 min
+     max hold - only the stop); a trade still open on Friday 22:55 Tirana is closed (broker shut at the weekend).
   P&L: Binance prices, minus $0.60/oz per bet (spread + slippage + ~$5 broker fee at 0.2 lot), $0.10 extra on stops.
   The MT5 quote (GoldPriceBridge) at entry and exit is stored too, to compare with the broker's price.
 
@@ -22,8 +23,8 @@ only fades if the burst looks exhausted -
 Writes  <status>/burst/YYYY-MM-DD.jsonl   version A: one line per finished trade or skipped burst (Tirana day)
         <status>/burst/B/YYYY-MM-DD.jsonl version B
         <status>/burst/state.json         what each version is doing now, today's trades, every day's totals
-On start it replays the last ~80 minutes from the recorder's files (warms up the 'normal volume' and picks up a
-trade that was open), without writing anything twice.
+On start it replays the recorder's files - the last ~80 minutes, or from just before the burst of a trade that is
+still open (burst/open.json), so a trade of any length survives a restart - without writing anything twice.
 """
 import asyncio, glob, json, os, sys, time
 from collections import deque
@@ -43,7 +44,7 @@ TZ = ZoneInfo("Europe/Tirane")
 W, MOVE, SHARE, VOLX, NORM = 30, 3.0, 0.6, 2.0, 1800      # burst: $3 in 30 s, 60% one side, 2x normal 30 s
 CALM_W, CALM_F, CALM_MIN, CALM_MAX = 10, 0.3, 10, 120     # calm: last 10 s <= 30% of burst pace, 10..120 s after
 ADD, STOP_PAST, ACT, TRAIL, TRAIL2 = 8.0, 5.0, 5.0, 2.0, 2.0
-MAX_HOLD = 1800
+MAX_HOLD = None                                          # no time limit (was 1800 s until Oct 19)
 COST, STOP_SLIP, OZ = 0.60, 0.10, 20                      # per oz per bet; 0.2 lot = 20 oz per bet
 H0, H1 = 9, 22                                            # Tirana hours for the burst
 KEEP = NORM + W + CALM_MAX + 60
@@ -253,8 +254,11 @@ class Engine:
                 ns = T["best"] - d * TRAIL
                 if T["stop"] is None or d * (ns - T["stop"]) > 0:
                     T["stop"] = ns
-        if j >= T["k"] + MAX_HOLD:
-            return self.finish_trade(j, p, "30 min max hold")
+        if MAX_HOLD and j >= T["k"] + MAX_HOLD:
+            return self.finish_trade(j, p, "max hold")
+        tj = tir(j)
+        if tj.weekday() == 4 and (tj.hour, tj.minute) >= (22, 55):
+            return self.finish_trade(j, p, "closed before the weekend")
 
     def pnl(self, T, xp):
         d = T["d"]
@@ -304,7 +308,7 @@ class Book:
     """the recorder's 2-second order-book snapshots, reduced to (second, near bids, near asks)"""
 
     def __init__(self):
-        self.snaps = deque(maxlen=6000)
+        self.snaps = deque(maxlen=60000)
         self.last_t = 0
 
     def add(self, rec):
@@ -323,7 +327,7 @@ class Book:
         import gzip
         now = int(time.time() * 1000)
         recs = []
-        for h in range(3, -1, -1):
+        for h in range((now - since_ms) // 3600000 + 1, -1, -1):
             day, hh = F.day_hour(now - h * 3600000)
             for fn in (f"book_{hh}.jsonl.gz", f"book_{hh}.jsonl"):
                 path = os.path.join(F.rec_dir(day), fn)
@@ -428,22 +432,34 @@ class Runner:
               **self.block("A", today),
               "rules": "Burst: $3+ in 30 s on 2x normal volume, 60%+ one side (Mon-Fri 09-22 Tirana). Wait until the last 10 s "
                        "trade at <30% of the burst pace (max 2 min), then fade it: 0.2 lot; 2nd 0.2 lot at -$8, stop $5 past "
-                       "it, trail $2 from break even; 1st bet trails $2 from +$5; max 30 min. Paper trades on Binance prices, "
+                       "it, trail $2 from break even; 1st bet trails $2 from +$5; no time limit (Friday 22:55 close). Paper trades on Binance prices, "
                        "after ~$0.60/oz per bet (spread + ~$5 fee).",
               "B": {**self.block("B", today),
                     "rules": "Version B: same, but when the volume has calmed it only fades if the order book leans against "
                              "the burst (resting size within $1.5 on the far side >= the near side) and price has already "
                              "pulled back $0.50+ from the burst's extreme. Otherwise it skips the burst."}}
         write_json(os.path.join(OUT, "state.json"), st)
+        write_json(os.path.join(OUT, "open.json"),       # bursts of trades still open, for a restart
+                   {v: e.trade["b"]["k"] for v, e in self.engines.items() if e.mode == "trade" and e.trade})
 
     def replay(self):
         now = int(time.time() * 1000)
-        nb = self.book.load_recorded(now - 85 * 60000)
+        start = now - 80 * 60000
+        try:
+            with open(os.path.join(OUT, "open.json")) as f:
+                opened = {v: int(k) for v, k in json.load(f).items() if v in self.engines}
+        except (OSError, ValueError, TypeError):
+            opened = {}
+        for v, k in opened.items():                       # replay that trade from its burst, no earlier entries
+            if k * 1000 > now - 24 * 3600000:
+                start = min(start, k * 1000 - 32 * 60000)
+                self.engines[v].cool = k
+        nb = self.book.load_recorded(start - 5 * 60000)
         trades = []
-        for h in range(3, -1, -1):
+        for h in range((now - start) // 3600000 + 1, -1, -1):
             day, hh = F.day_hour(now - h * 3600000)
             trades += F.recorded_trades(day, hh)
-        trades = sorted({t[0]: t for t in trades if t[1] >= now - 80 * 60000}.values(), key=lambda t: (t[1], t[0]))
+        trades = sorted({t[0]: t for t in trades if t[1] >= start}.values(), key=lambda t: (t[1], t[0]))
         for e in self.engines.values():
             e.live = False
         for a, t, pc, q, sell in trades:
@@ -453,7 +469,7 @@ class Runner:
         for e in self.engines.values():
             e.tick(int(time.time() * 1000))
             e.live = True
-        log(f"replay: {len(trades)} recorded trades, {nb} book snapshots from the last 80 min; "
+        log(f"replay: {len(trades)} recorded trades, {nb} book snapshots since {datetime.fromtimestamp(start / 1000, TZ):%H:%M} (open before: {opened}); "
             f"now A {self.engines['A'].mode}, B {self.engines['B'].mode}")
 
     def on_trade(self, d):
