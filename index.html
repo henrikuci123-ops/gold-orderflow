@@ -206,7 +206,7 @@ input[type=checkbox]{width:22px;height:22px}
   <div class="help">
     <b>Footprint:</b> each candle split into price rows — <b>left column = market sells</b> (hit the bid), <b>right column = market buys</b> (lifted the ask), in MT5 lots (or ounces — Settings), candle in the middle. Darker colour = more volume. <b>Strong red/green cell with bold number</b> = imbalance (one side 3x the other, diagonally). Grey row = busiest price of the candle (POC). Under each candle: sells / buys totals and a box with <b>Delta</b> (buys − sells) and <b>Total</b>. Candle sizes 1 min – 4 hours; the server sends the full history (30 days for 4h), 4h candles start at MT5 server times.<br>
     <b>Colours:</b> Settings → Colours changes candles, buys/sells, strong cells, POC, value area, walls, accent, background, grid and text (Reset colours = back to normal); each value area has its own colour in Value areas ▾; the heatmap colours are under Heatmap → Style.<br>
-    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView. <b>Live absorption</b> (pulsing bubble + ABSORB tag on the price scale + alert): in the last minute unusually heavy selling (buying) keeps hitting the low (high) and price will not go through — it is being absorbed right now; afterwards a ✓ (held: price moved $1 away) or ✕ (broke through). <b>Absorption bubbles</b>: a swing high/low where unusually much traded right at the extreme and price then turned away — red at highs (buying absorbed, bearish), green at lows (selling absorbed, bullish), bigger = more volume, dashed = still forming (confirms within about 2–3 candles).<br>
+    <b>Value Area tab:</b> candles with as many value areas as you like (Value areas ▾): previous day, today, this week, last week (MT5 days) or a custom range (tap its first and last candle). Each one shows the volume per price from its left edge, the <b>delta</b> (buys − sells, green/red) per price from its right edge, the value area (70% of the volume) shaded and the POC line; "extend" carries the lines to the right like TradingView. <b>Live absorption</b> (pulsing bubble + ABSORB tag on the price scale + alert): in the last minute unusually heavy selling (buying) keeps hitting the low (high) and price will not go through — it is being absorbed right now; afterwards a ✓ (held: price moved $1 away) or ✕ (broke through). <b>BREAK ▲/▼</b> (bubble with an arrow, coloured the breakout way): the hits were 1.6x+ a normal minute — in the Oct 5–29 test these broke through about 3 times in 4, so it is a breakout warning, not absorption; afterwards ✓ if it broke through, ✕ if it held. <b>Absorption bubbles</b>: a swing high/low where unusually much traded right at the extreme and price then turned away — red at highs (buying absorbed, bearish), green at lows (selling absorbed, bullish), bigger = more volume, dashed = still forming (confirms within about 2–3 candles).<br>
     <b>Right panel:</b> today's volume profile (Tirana day): yellow = fair price (POC), blue dashed = value area (70%) — lines are drawn behind the numbers.<br>
     <b>ABS ▲</b> = selling absorbed at the low (heavy selling, price closed well off the low) · <b>ABS ▼</b> = buying absorbed at the high · <b>side bars</b> = 3+ stacked imbalances. ★ = at the fair price / value area edge.<br>
     <b>Order walls</b> (shaded zones): prices where unusually big buy (blue) or sell (orange) orders are waiting in the order book and have stayed there for a while — price often stalls or bounces there; if a wall suddenly disappears, it was probably fake. Our server records the order book 24/7, so walls and the heatmap are already filled in (last 2 hours) when you open the app — see the Server tab.<br><b>Heatmap:</b> waiting limit orders (brighter = bigger) over time, white line = price, dots = aggressive buys (green) / sells (red) per second.<br>
@@ -1506,7 +1506,7 @@ function drawXH() {
       const d = c.b - c.s;
       tLabel = va.tf >= 240 ? tFmtD.format(c.t) : tFmt.format(c.t);
       lines = [tFmtX.format(c.t), `O ${fmtP(c.o)}   H ${fmtP(c.h)}`, `L ${fmtP(c.l)}   C ${fmtP(c.c)}`, `Vol ${fmtQ(c.b + c.s)} ${UNIT()}   Delta ${d >= 0 ? '+' : '−'}${fmtQ(Math.abs(d))}`];
-      for (const e of (g.live || []).filter(e2 => e2.i === i)) lines.push(`${e.state === 'live' ? 'ABSORBING NOW' : e.state === 'held' ? 'Absorption held' : 'Absorption broke'} at ${fmtP(e.ext)}: ${e.side === 'low' ? 'sells' : 'buys'} ${fmtQ(e.vol)} ${UNIT()} in 60 s vs ${fmtQ(e.opp)} the other way · ${tFmtS.format(e.t0)}`);
+      for (const e of (g.live || []).filter(e2 => e2.i === i)) lines.push(`${e.brk ? (e.state === 'live' ? `BREAKOUT ${e.side === 'low' ? 'DOWN' : 'UP'}? (${e.x.toFixed(1)}x normal)` : e.state === 'broken' ? 'Breakout happened' : 'Breakout failed (held)') : e.state === 'live' ? 'ABSORBING NOW' : e.state === 'held' ? 'Absorption held' : 'Absorption broke'} at ${fmtP(e.ext)}: ${e.side === 'low' ? 'sells' : 'buys'} ${fmtQ(e.vol)} ${UNIT()} in 60 s vs ${fmtQ(e.opp)} the other way · ${tFmtS.format(e.t0)}`);
       for (const e of (g.abs || []).filter(e2 => e2.i === i)) lines.push(`${e.side === 'h' ? 'Absorbed at the high' : 'Absorbed at the low'} ${fmtP(e.ext)}: ${fmtQ(e.vol)} ${UNIT()} (buys ${fmtQ(e.b)} · sells ${fmtQ(e.s)})${e.live ? ' — forming' : ''}`);
     } else lines = [`Price ${fmtP(price)}`];
     const r = Math.floor(price / va.step + 1e-7);
@@ -2011,8 +2011,8 @@ function drawVA() {
   ctx.restore();
   priceAxis(x1, yOf, 0, plotH, ppd * va.step, va.step);
   for (const e of liveEv) if (e.state === 'live' && e.y > 8 && e.y < plotH - 8) {     // 'ABSORB' tag on the price scale while it happens
-    ctx.fillStyle = e.side === 'low' ? C.up : C.dn; ctx.fillRect(x1 + 1, e.y - 9, W - x1 - 1, 18);
-    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText('ABSORB', x1 + 5, e.y); ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = e.brk ? (e.side === 'low' ? C.dn : C.up) : e.side === 'low' ? C.up : C.dn; ctx.fillRect(x1 + 1, e.y - 9, W - x1 - 1, 18);
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px -apple-system,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText(e.brk ? (e.side === 'low' ? 'BREAK ▼' : 'BREAK ▲') : 'ABSORB', x1 + 5, e.y); ctx.textBaseline = 'alphabetic';
   }
   // time strip: day names at day starts, times in between
   ctx.fillStyle = C.panel; ctx.fillRect(0, plotH, x1, BOT);
@@ -2092,6 +2092,7 @@ document.querySelectorAll('#tfVa button[data-vtf]').forEach(b => b.onclick = () 
 // Backtest on Oct 1-2 data (minute version): about 8 alerts a day at "normal", ~2 of 3 held for the next minutes.
 const LA = {ev: [], id: 0, pulse: false, lastAlert: {low: 0, high: 0}};
 const LA_Z = 0.4;
+const LA_BRK = 1.6;   // hits >= 1.6 x a normal minute: in the Oct 5-29 test these broke through ~3 times in 4 -> shown as a BREAKOUT warning, not absorption
 function tradeIdxFrom(T) { let lo = 0, hi = n; while (lo < hi) { const m = (lo + hi) >> 1; if (tT[m] < T) lo = m + 1; else hi = m; } return lo; }
 function xIdxFrom(T) { let lo = 0, hi = xn; while (lo < hi) { const m = (lo + hi) >> 1; if (xT[m] < T) lo = m + 1; else hi = m; } return lo; }
 function normPerMin(now) {                    // normal total volume per minute (last 30 min; Binance 1-min candles right after opening)
@@ -2137,10 +2138,11 @@ function liveAbsCheck() {
     if (prev && prev.state !== 'live') continue;                                     // this level was just resolved: no repeat
     let e = prev;
     if (!e) {
-      e = {id: ++LA.id, side, ext, t0: now, t: now, vol: agg, opp, state: 'live'}; LA.ev.push(e);
+      e = {id: ++LA.id, side, ext, t0: now, t: now, vol: agg, opp, state: 'live', x: agg / norm, brk: agg >= LA_BRK * norm}; LA.ev.push(e);
       if (now - LA.lastAlert[side] > 120000) {
         LA.lastAlert[side] = now;
-        toast(`${side === 'low' ? 'Selling' : 'Buying'} being absorbed at ${fmtP(ext)} — ${fmtQ(agg)} ${UNIT()} hit it in the last minute and price is holding (${side === 'low' ? 'bullish' : 'bearish'})`);
+        if (e.brk) toast(`BREAKOUT ${side === 'low' ? 'DOWN' : 'UP'}? Very heavy ${side === 'low' ? 'selling' : 'buying'} at ${fmtP(ext)} — ${e.x.toFixed(1)}x a normal minute. Hits this strong broke through about 3 times in 4 (Oct test), so this is likely a breakout, not absorption`);
+        else toast(`${side === 'low' ? 'Selling' : 'Buying'} being absorbed at ${fmtP(ext)} — ${fmtQ(agg)} ${UNIT()} hit it in the last minute and price is holding (${side === 'low' ? 'bullish' : 'bearish'})`);
         if (S.sound) beep(side === 'low' ? 880 : 520);
       }
     }
@@ -2160,15 +2162,18 @@ function drawLiveAbs(ks, X, yOf, cw, x1, plotH) {   // on the Value Area chart (
     if (i < 0) continue;
     const x = X(i) + cw / 2, y = yOf(e.side === 'low' ? e.ext + LA_Z / 2 : e.ext - LA_Z / 2);
     if (x < -20 || x > x1 + 20 || y < -20 || y > plotH + 20) continue;
-    const col = e.state === 'broken' ? '#9598a1' : e.side === 'low' ? C.up : C.dn, rgb = hexRgb(col);
+    const bd = e.brk ? (e.side === 'low' ? -1 : 1) : 0;                // breakout warning: coloured by the breakout direction
+    const ok = e.brk ? e.state === 'broken' : e.state === 'held';      // did it do what the bubble said?
+    const col = e.state !== 'live' && !ok ? '#9598a1' : bd ? (bd > 0 ? C.up : C.dn) : e.side === 'low' ? C.up : C.dn, rgb = hexRgb(col);
     if (e.state === 'live') {                          // pulsing: core + expanding ring
       const r = 9 + 3 * Math.sin(ph * 2 * Math.PI);
       ctx.beginPath(); ctx.arc(x, y, 9 + 18 * ph, 0, 2 * Math.PI); ctx.strokeStyle = `rgba(${rgb},${(1 - ph).toFixed(2)})`; ctx.lineWidth = 3; ctx.stroke();
       ctx.beginPath(); ctx.arc(x, y, r, 0, 2 * Math.PI); ctx.fillStyle = `rgba(${rgb},.55)`; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
+      if (bd) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.moveTo(x, y - 5 * bd); ctx.lineTo(x - 5, y + 4 * bd); ctx.lineTo(x + 5, y + 4 * bd); ctx.closePath(); ctx.fill(); }   // arrow = breakout way
     } else {
       ctx.beginPath(); ctx.arc(x, y, 8, 0, 2 * Math.PI); ctx.fillStyle = `rgba(${rgb},.3)`; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
       ctx.strokeStyle = col; ctx.beginPath();
-      if (e.state === 'broken') { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
+      if (!ok) { ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); }
       else { ctx.moveTo(x - 4, y); ctx.lineTo(x - 1, y + 3); ctx.lineTo(x + 4, y - 3); }
       ctx.lineWidth = 2; ctx.stroke(); ctx.lineWidth = 1;
     }
